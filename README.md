@@ -39,17 +39,18 @@ npm run revoke
 npm run revoke -- --network arbitrum
 npm run revoke -- --network base,arbitrum,optimism
 npm run revoke:all
-
+`````
 bash
 
 # Delegate
 npm run delegate
 npm run delegate -- --network base,arbitrum
 npm run delegate:all
-
+`````
 With custom delay:bash
 
 npm run revoke -- --network all --delay 1500
+`````
 
 Security RecommendationsAlways use a separate sponsor account with small balance
 Never commit your .env file
