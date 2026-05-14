@@ -29,7 +29,9 @@ cd eip7702-revoker
 npm install
 cp .env.example .env
 
-Edit the .env file and add your private keys.Usagebash
+Edit the .env file and add your private keys.
+Usage
+```bash
 
 # Show help
 npm run help
