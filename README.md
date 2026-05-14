@@ -8,7 +8,7 @@ Powerful and secure CLI tool to **revoke** and **delegate** EIP-7702 authorizati
 
 - Revoke malicious or unwanted delegations (reset to zero address)
 - Delegate to any address
-- Separate sponsor account for gas payments (highly recommended)
+- Separate **sponsor account** for gas payments (highly recommended)
 - Support for multiple networks at once
 - Automatic balance check
 - User-friendly CLI
@@ -29,33 +29,38 @@ cd eip7702-revoker
 npm install
 cp .env.example .env
 
-Edit the .env file and add your private keys.Usagebash
+Edit the .env file and add your private keys.
+
+Usage
 
 # Show help
 npm run help
 
-# Revoke
-npm run revoke                    # Default = Base
+# Revoke examples
+npm run revoke                    # on Base (default)
 npm run revoke -- --network arbitrum
 npm run revoke -- --network base,arbitrum,optimism
-npm run revoke:all                # All networks
+npm run revoke:all                # on all networks
 
-# Delegate
+# Delegate examples
 npm run delegate
 npm run delegate -- --network base,arbitrum
 npm run delegate:all
 
-With custom delay:bash
+With custom delay:
 
 npm run revoke -- --network all --delay 1500
 
-Direct commandsbash
+Direct commands
 
 node revoke.mjs --network all
 node delegate.mjs --network base,arbitrum
 
-Security RecommendationsUse a separate sponsor account with small balance
+Security Recommendations
+
+Always use a separate sponsor account with small balance
 Never commit your .env file
 
-LicenseMIT © Serge693
+License
+MIT © Serge693
 
