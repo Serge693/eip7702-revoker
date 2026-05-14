@@ -1,71 +1,87 @@
+// revoke.mjs
+import { Command } from 'commander';
 import { createPublicClient, createWalletClient, http, zeroAddress, formatEther } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { base, mainnet, bsc, arbitrum, optimism, polygon, gnosis, linea, blast, mode, soneium } from 'viem/chains';
+import * as cfg from './config.mjs';
 
-// ====================== CONFIGURATION ======================
-const VICTIM_PRIVATE_KEY = "0x...";     // Account with delegation (the one you want to revoke)
-const SPONSOR_PRIVATE_KEY = "0x...";    // Account that pays gas (recommended to be different)
+const program = new Command();
 
-const NETWORK = base;                   // Change network here
-// const NETWORK = mainnet;
-// const NETWORK = bsc;
-// const NETWORK = arbitrum;
-// ===========================================================
+program
+    .name('revoke')
+    .description('EIP-7702 Revoker — Revoke delegation')
+    .option('-n, --network <networks>', 'Networks (comma separated) or all', 'base')
+    .option('-d, --delay <ms>', 'Delay between networks (ms)', '800')
+    .parse();
 
-const publicClient = createPublicClient({
-    chain: NETWORK,
-    transport: http()
-});
+const options = program.opts();
+const networksInput = options.network;
+const delay = parseInt(options.delay);
 
-const victimAccount = privateKeyToAccount(VICTIM_PRIVATE_KEY);
-const sponsorAccount = privateKeyToAccount(SPONSOR_PRIVATE_KEY);
+async function revokeOnNetwork(network) {
+    console.log(`\n🔥 Revoke → ${network.name} (Chain ID: ${network.id})`);
+
+    const publicClient = createPublicClient({ chain: network, transport: http() });
+    const walletClient = createWalletClient({ 
+        account: cfg.sponsorAccount, 
+        chain: network, 
+        transport: http() 
+    });
+
+    try {
+        const sponsorBalance = await publicClient.getBalance({ address: cfg.sponsorAccount.address });
+        console.log(`   Sponsor balance: ${formatEther(sponsorBalance)} ${network.nativeCurrency.symbol}`);
+
+        if (sponsorBalance < 3n * 10n ** 15n) {
+            console.log(`   ❌ Sponsor has insufficient balance`);
+            return false;
+        }
+
+        const nonce = await publicClient.getTransactionCount({ address: cfg.victimAccount.address });
+
+        const authorization = await cfg.victimAccount.signAuthorization({
+            contractAddress: zeroAddress,
+            chainId: network.id,
+            nonce,
+        });
+
+        console.log(`   ✅ Authorization signed`);
+
+        const hash = await walletClient.sendTransaction({
+            to: cfg.victimAccount.address,
+            authorizationList: [authorization],
+            gas: 450000n,
+        });
+
+        console.log(`   📤 Hash: ${hash}`);
+        console.log(`   🔗 ${network.blockExplorers.default.url}/tx/${hash}`);
+
+        const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
+        console.log(`   ${receipt.status === 'success' ? '✅ SUCCESSFULLY REVOKED' : '❌ FAILED'}`);
+        return true;
+
+    } catch (err) {
+        console.log(`   ❌ Error: ${err.shortMessage || err.message}`);
+        return false;
+    }
+}
 
 async function main() {
-    console.log(`Network: ${NETWORK.name} (Chain ID: ${NETWORK.id})`);
-    console.log(`Victim: ${victimAccount.address}`);
-    console.log(`Sponsor: ${sponsorAccount.address}\n`);
+    console.log(`🚀 EIP-7702 Multi-Revoker`);
+    console.log(`Victim: ${cfg.victimAccount.address}`);
+    console.log(`Sponsor: ${cfg.sponsorAccount.address}\n`);
 
-    // Check balance
-    const balance = await publicClient.getBalance({ address: victimAccount.address });
-    console.log(`Victim balance: ${formatEther(balance)} ${NETWORK.nativeCurrency.symbol}`);
+    const networks = cfg.getNetworks(networksInput);
 
-    const nonce = await publicClient.getTransactionCount({
-        address: victimAccount.address
-    });
+    for (const network of networks) {
+        await revokeOnNetwork(network);
+        if (networks.indexOf(network) !== networks.length - 1) {
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
 
-    console.log(`Nonce: ${nonce}`);
-
-    // Sign authorization to revoke (delegate to zero address)
-    const authorization = await victimAccount.signAuthorization({
-        contractAddress: zeroAddress,   // Revoke delegation
-        chainId: NETWORK.id,
-        nonce: nonce,
-    });
-
-    console.log("✅ Authorization signed (revoke)");
-
-    const walletClient = createWalletClient({
-        account: sponsorAccount,
-        chain: NETWORK,
-        transport: http()
-    });
-
-    console.log("🚀 Sending revoke transaction...");
-
-    const hash = await walletClient.sendTransaction({
-        to: victimAccount.address,
-        authorizationList: [authorization],
-        gas: 400000n,
-    });
-
-    console.log(`\n✅ Transaction sent!`);
-    console.log(`Explorer: https://${NETWORK.blockExplorers.default.url}/tx/${hash}`);
-
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    console.log(`Status: ${receipt.status === 'success' ? 'SUCCESS ✅' : 'FAILED ❌'}`);
+    console.log(`\n✅ All operations completed!`);
 }
 
 main().catch(err => {
-    console.error("\n❌ Error:");
-    console.error(err);
+    console.error("\n💥 Critical error:", err.message);
+    process.exit(1);
 });
