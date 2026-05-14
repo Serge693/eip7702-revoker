@@ -9,7 +9,7 @@ Powerful and secure CLI tool to **revoke** and **delegate** EIP-7702 authorizati
 - Revoke malicious or unwanted delegations
 - Delegate to any address
 - Separate **sponsor account** for gas payments (recommended for security)
-- Multi-network support (Ethereum, Base, Arbitrum, etc.)
+- Multi-network support
 - Modern CLI with options
 - Automatic balance checking
 
@@ -27,3 +27,4 @@ Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Gnosis, Linea, Blast, Mo
 git clone https://github.com/Serge693/eip7702-revoker.git
 cd eip7702-revoker
 npm install
+cp .env.example .env
