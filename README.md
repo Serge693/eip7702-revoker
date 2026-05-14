@@ -44,20 +44,17 @@ The tool automatically signs such an authorization from the victimAccount and se
 
 Usage Examples
 Revoke delegation (main use case):
-Bashnode revoke.mjs --network ethereum
+node revoke.mjs --network ethereum
 Delegate to an address:
-Bashnode revoke.mjs --network ethereum
-Delegate to an address:
-Bashnode delegate.mjs --network base --to 0x1234567890abcdef1234567890abcdef12345678
+node delegate.mjs --network base --to 0x1234567890abcdef1234567890abcdef12345678
 Using private keys directly (without .env):
-Bashnode revoke.mjs --network arbitrum \
+node revoke.mjs --network arbitrum \
   --victim-pk 0x... \
   --sponsor-pk 0x...
 Dry run (check without sending):
-Bashnode revoke.mjs --network ethereum --dry-run
+node revoke.mjs --network ethereum --dry-run
 Revoke on all networks:
-Bashnode revoke.mjs --network all
-
+node revoke.mjs --network all
 ⚠️ Security Warning
 Never commit private keys to the repository!
 
@@ -67,52 +64,10 @@ Always use a separate sponsor account with only enough ETH for gas
 
 
 Comparison with Other Tools
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-ToolSeparate SponsorAll NetworksCLIOpen SourceEase of Useeip7702-revokerYesYesYesYes★★★★★cast (Foundry)Yes (manual)NoYesYes★★★revoke.cashNoNoNoNo★★★★★Built-in WalletsNoLimitedNoNo★★★★
-
+Tool,Separate Sponsor,All Networks,CLI,Open Source,Ease of Use
+eip7702-revoker,Yes,Yes,Yes,Yes,★★★★★
+cast (Foundry),Yes (manual),No,Yes,Yes,★★★
+revoke.cash,No,No,No,No,★★★★★
+Built-in Wallets,No,Limited,No,No,★★★★
 License
 MIT © Serge693
