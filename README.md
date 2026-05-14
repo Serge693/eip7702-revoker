@@ -37,80 +37,29 @@ Revoke is performed by setting the delegate address to the zero address (0x00000
 According to the EIP-7702 specification:
 
 Signing an authorization with delegate = address(0) completely removes the current delegation.
-After the transaction is executed, the account returns to a normal EOA (Externally Owned Account).
+After the transaction is executed, the account returns to a normal EOA.
 This is the standard and most reliable way to revoke a delegation.
 
-The tool automatically signs such an authorization from the victimAccount and sends the transaction from the sponsorAccount.
 
 Usage Examples
-Revoke delegation (main use case):
+Revoke (main use case):
 Bashnode revoke.mjs --network ethereum
-Delegate to an address:
+Delegate:
 Bashnode delegate.mjs --network base --to 0x1234567890abcdef1234567890abcdef12345678
-Using private keys directly (without .env):
-Bashnode revoke.mjs --network arbitrum \
-  --victim-pk 0x... \
-  --sponsor-pk 0x...
-Dry run (check without sending):
+With private keys directly:
+Bashnode revoke.mjs --network arbitrum --victim-pk 0x... --sponsor-pk 0x...
+Dry run:
 Bashnode revoke.mjs --network ethereum --dry-run
-Revoke on all networks:
+All networks:
 Bashnode revoke.mjs --network all
 
 ⚠️ Security Warning
 Never commit private keys to the repository!
 
-The .env file is already included in .gitignore
-For maximum security, run this tool on a clean machine or air-gapped environment
-Always use a separate sponsor account with only enough ETH for gas
+.env is already in .gitignore
+Use a separate sponsor account with minimal ETH
+For best security run on a clean/air-gapped machine
 
-
-Comparison with Other Tools
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-ToolSeparate SponsorAll NetworksCLIOpen SourceEase of Useeip7702-revokerYesYesYesYes★★★★★cast (Foundry)Yes (manual)NoYesYes★★★revoke.cashNoNoNoNo★★★★★Built-in WalletsNoLimitedNoNo★★★★
 
 License
 MIT © Serge693
