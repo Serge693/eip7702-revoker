@@ -66,7 +66,9 @@ npm run revoke -- --network all --delay 1500
 `````
 
 Security Recommendations
+
 Always use a separate sponsor account with small balance
+
 Never commit your .env file
 
 ---
