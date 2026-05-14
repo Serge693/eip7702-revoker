@@ -29,7 +29,12 @@ cd eip7702-revoker
 npm install
 cp .env.example .env
 `````
+
+---
+
 Edit the .env file and add your private keys.
+
+---
 
 Usage
 
@@ -50,13 +55,21 @@ npm run delegate -- --network base,arbitrum
 npm run delegate:all
 
 `````
-With custom delay:bash
+
+---
+
+With custom delay:
+
+```bash
 
 npm run revoke -- --network all --delay 1500
 `````
 
-Security RecommendationsAlways use a separate sponsor account with small balance
+Security Recommendations
+Always use a separate sponsor account with small balance
 Never commit your .env file
+
+---
 
 LicenseMIT © Serge693
 
