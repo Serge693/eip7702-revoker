@@ -44,10 +44,10 @@ Usage
 npm run help
 
 # Revoke examples
-npm run revoke
+npm run revoke                    # on Base (default)
 npm run revoke -- --network arbitrum
 npm run revoke -- --network base,arbitrum,optimism
-npm run revoke:all
+npm run revoke:all                # on all networks
 
 # Delegate examples
 npm run delegate
@@ -64,6 +64,18 @@ With custom delay:
 
 npm run revoke -- --network all --delay 1500
 `````
+
+---
+
+Direct commands
+
+```bash
+
+node revoke.mjs --network all
+node delegate.mjs --network base,arbitrum
+`````
+
+---
 
 Security Recommendations
 
