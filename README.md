@@ -38,18 +38,17 @@ Usage
 # Show help
 npm run help
 
-# Revoke
+# Revoke examples
 npm run revoke
 npm run revoke -- --network arbitrum
 npm run revoke -- --network base,arbitrum,optimism
 npm run revoke:all
-`````
-bash
 
-# Delegate
+# Delegate examples
 npm run delegate
 npm run delegate -- --network base,arbitrum
 npm run delegate:all
+
 `````
 With custom delay:bash
 
