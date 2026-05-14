@@ -31,6 +31,7 @@ cp .env.example .env
 `````
 Edit the .env file and add your private keys.
 Usage
+
 ```bash
 
 # Show help
