@@ -30,3 +30,19 @@ git clone https://github.com/Serge693/eip7702-revoker.git
 cd eip7702-revoker
 npm install
 cp .env.example .env
+Edit the .env file and add your private keys.
+
+How EIP-7702 Revoke Works (Zero Address)
+Revoke is performed by setting the delegate address to the zero address (0x0000000000000000000000000000000000000000).
+According to the EIP-7702 specification:
+
+Signing an authorization with delegate = address(0) completely removes the current delegation.
+After the transaction is executed, the account returns to a normal EOA (Externally Owned Account).
+This is the standard and most reliable way to revoke a delegation.
+
+The tool automatically signs such an authorization from the victimAccount and sends the transaction from the sponsorAccount.
+
+Usage Examples
+Revoke delegation (main use case):
+Bashnode revoke.mjs --network ethereum
+Delegate to an address:
