@@ -6,12 +6,12 @@ Powerful and secure CLI tool to **revoke** and **delegate** EIP-7702 authorizati
 
 ### Features
 
-- Revoke malicious delegations (reset to zero address)
+- Revoke malicious or unwanted delegations (reset to zero address)
 - Delegate to any address
-- Separate sponsor account for gas (recommended for security)
-- Support for multiple networks simultaneously
-- Automatic balance check
-- User-friendly CLI
+- Separate **sponsor account** for gas payments (highly recommended)
+- Support for multiple networks at once
+- Automatic sponsor balance check
+- Modern and user-friendly CLI
 
 ---
 
@@ -29,29 +29,23 @@ cd eip7702-revoker
 npm install
 cp .env.example .env
 
-Then edit the .env file and add your private keys.UsageMain commands:bash
+Edit the .env file and add your private keys.Usagebash
 
 # Show help
 npm run help
 
-# Revoke on Base (default)
-npm run revoke
-
-# Revoke on specific network
+# Revoke examples
+npm run revoke                    # on Base (default)
 npm run revoke -- --network arbitrum
-
-# Revoke on several networks
 npm run revoke -- --network base,arbitrum,optimism
-
-# Revoke on all networks
-npm run revoke:all
+npm run revoke:all                # on all networks
 
 # Delegate examples
 npm run delegate
 npm run delegate -- --network base,arbitrum
 npm run delegate:all
 
-With delay between networks:bash
+With custom delay:bash
 
 npm run revoke -- --network all --delay 1500
 
@@ -60,9 +54,9 @@ Direct commandsbash
 node revoke.mjs --network all
 node delegate.mjs --network base,arbitrum
 
-Security RecommendationsAlways use a separate sponsor account with small balance
+Security RecommendationsAlways use a separate sponsor account with minimal balance
 Never commit your .env file
-Run the tool from a clean environment
+.env is already ignored by .gitignore
 
 LicenseMIT © Serge693
-
+`docs: clean up README.md`
