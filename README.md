@@ -46,3 +46,73 @@ Usage Examples
 Revoke delegation (main use case):
 Bashnode revoke.mjs --network ethereum
 Delegate to an address:
+Bashnode revoke.mjs --network ethereum
+Delegate to an address:
+Bashnode delegate.mjs --network base --to 0x1234567890abcdef1234567890abcdef12345678
+Using private keys directly (without .env):
+Bashnode revoke.mjs --network arbitrum \
+  --victim-pk 0x... \
+  --sponsor-pk 0x...
+Dry run (check without sending):
+Bashnode revoke.mjs --network ethereum --dry-run
+Revoke on all networks:
+Bashnode revoke.mjs --network all
+
+⚠️ Security Warning
+Never commit private keys to the repository!
+
+The .env file is already included in .gitignore
+For maximum security, run this tool on a clean machine or air-gapped environment
+Always use a separate sponsor account with only enough ETH for gas
+
+
+Comparison with Other Tools
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ToolSeparate SponsorAll NetworksCLIOpen SourceEase of Useeip7702-revokerYesYesYesYes★★★★★cast (Foundry)Yes (manual)NoYesYes★★★revoke.cashNoNoNoNo★★★★★Built-in WalletsNoLimitedNoNo★★★★
+
+License
+MIT © Serge693
