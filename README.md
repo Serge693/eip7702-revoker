@@ -34,13 +34,15 @@ Edit the .env file and add your private keys.Usagebash
 # Show help
 npm run help
 
-# Revoke examples
-npm run revoke                    # on Base (default)
+# Revoke
+npm run revoke
 npm run revoke -- --network arbitrum
 npm run revoke -- --network base,arbitrum,optimism
-npm run revoke:all                # on all networks
+npm run revoke:all
 
-# Delegate examples
+bash
+
+# Delegate
 npm run delegate
 npm run delegate -- --network base,arbitrum
 npm run delegate:all
@@ -48,11 +50,6 @@ npm run delegate:all
 With custom delay:bash
 
 npm run revoke -- --network all --delay 1500
-
-Direct commandsbash
-
-node revoke.mjs --network all
-node delegate.mjs --network base,arbitrum
 
 Security RecommendationsAlways use a separate sponsor account with small balance
 Never commit your .env file
