@@ -9,9 +9,9 @@ Powerful and secure CLI tool to **revoke** and **delegate** EIP-7702 authorizati
 - Revoke malicious or unwanted delegations (reset to zero address)
 - Delegate to any address
 - Separate **sponsor account** for gas payments (highly recommended)
-- Support for multiple networks at once
-- Automatic sponsor balance check
-- Modern and user-friendly CLI
+- Support for multiple networks simultaneously
+- Automatic balance check
+- User-friendly CLI
 
 ---
 
@@ -54,9 +54,9 @@ Direct commandsbash
 node revoke.mjs --network all
 node delegate.mjs --network base,arbitrum
 
-Security RecommendationsAlways use a separate sponsor account with minimal balance
+Security RecommendationsAlways use a separate sponsor account with small balance
 Never commit your .env file
-.env is already ignored by .gitignore
+.env is ignored by .gitignore
 
 LicenseMIT © Serge693
-`docs: clean up README.md`
+
