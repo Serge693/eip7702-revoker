@@ -58,7 +58,7 @@ npm run delegate:all
 
 ---
 
-With custom delay:
+### With custom delay:
 
 ```bash
 
@@ -67,7 +67,7 @@ npm run revoke -- --network all --delay 1500
 
 ---
 
-Direct commands
+### Direct commands
 
 ```bash
 
@@ -77,7 +77,7 @@ node delegate.mjs --network base,arbitrum
 
 ---
 
-Security Recommendations
+### Security Recommendations
 
 Always use a separate sponsor account with small balance
 
@@ -85,7 +85,7 @@ Never commit your .env file
 
 ---
 
-License
+### License
 
 MIT © Serge693
 
