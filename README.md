@@ -32,11 +32,11 @@ cp .env.example .env
 
 ---
 
-Edit the .env file and add your private keys.
+Edit the `.env` file and add your private keys.
 
 ---
 
-Usage
+### Usage
 
 ```bash
 
@@ -54,7 +54,7 @@ npm run delegate
 npm run delegate -- --network base,arbitrum
 npm run delegate:all
 
-`````
+```
 
 ---
 
