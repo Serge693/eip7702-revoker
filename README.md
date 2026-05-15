@@ -85,5 +85,7 @@ Never commit your .env file
 
 ---
 
-LicenseMIT © Serge693
+License
+
+MIT © Serge693
 
