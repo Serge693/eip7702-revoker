@@ -47,10 +47,6 @@ npm run revoke -- --network all --dry-run
 
 ```
 
-# Same commands work for delegate.
-
----
-
 # Network aliases supported:
 
 bsc, bnb, BNB Chain, arbitrum one, ethereum, matic, etc.
