@@ -1,6 +1,6 @@
 {
   "name": "eip7702-revoker",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Powerful and secure CLI tool to revoke and delegate EIP-7702 authorizations with a separate gas sponsor account.",
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
     "help": "node revoke.mjs --help",
     "help:delegate": "node delegate.mjs --help"
   },
-  "keywords": ["eip-7702", "eip7702", "revoke", "delegate", "authorization", "viem", "ethereum", "security", "drainer"],
+  "keywords": ["eip-7702", "eip7702", "revoke", "delegate", "authorization", "security", "ethereum"],
   "author": "Serge693",
   "license": "MIT",
   "dependencies": {
