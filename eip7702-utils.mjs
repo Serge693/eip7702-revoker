@@ -2,6 +2,14 @@
 import { createPublicClient, createWalletClient, http, zeroAddress, parseEther } from 'viem';
 import pc from 'picocolors';
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 2000;
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function sendEIP7702Tx({
   network,
   sourceAccount,
@@ -22,7 +30,7 @@ export async function sendEIP7702Tx({
 
   if (!jsonOutput) console.log(pc.cyan(`\n→ ${network.name} (Chain ID: ${network.id})`));
 
-  // 1. Проверка текущей делегации
+  // 1. Проверка делегации
   const code = await publicClient.getCode({ address: sourceAccount.address });
   const hasDelegation = code && code !== '0x' && code !== '0x0';
 
@@ -45,7 +53,7 @@ export async function sendEIP7702Tx({
         blockTag: 'pending' 
       });
 
-  // 3. Подпись авторизации
+  // 3. Подпись
   const authorization = await sourceAccount.signAuthorization({
     contractAddress,
     chainId: network.id,
@@ -55,84 +63,56 @@ export async function sendEIP7702Tx({
   if (!jsonOutput) console.log(pc.green("   ✅ Authorization signed"));
 
   if (dryRun) {
-    if (!jsonOutput) console.log(pc.yellow("   🧪 DRY-RUN MODE — transaction not sent"));
+    if (!jsonOutput) console.log(pc.yellow("   🧪 DRY-RUN MODE"));
     return true;
   }
 
-  // ==================== ДИНАМИЧЕСКАЯ ПРОВЕРКА БАЛАНСА ====================
-  const sponsorBalance = await publicClient.getBalance({ address: sponsorAccount.address });
-  const balanceEth = Number(sponsorBalance) / 1e18;
+  // ==================== Retry + EIP-1559 Gas Strategy ====================
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // Динамическая оценка газа и fees
+      const estimatedGas = await publicClient.estimateGas({
+        account: sponsorAccount,
+        to: sourceAccount.address,
+        authorizationList: [authorization],
+      });
 
-  if (!jsonOutput) {
-    console.log(`   Sponsor balance: ${balanceEth.toFixed(5)} ${network.nativeCurrency.symbol}`);
-  }
+      const fees = await publicClient.estimateFeesPerGas();
 
-  // Оцениваем стоимость транзакции
-  let estimatedGas = 120000n;
-  try {
-    estimatedGas = await publicClient.estimateGas({
-      account: sponsorAccount,
-      to: sourceAccount.address,
-      authorizationList: [authorization],
-    });
-  } catch (e) {
-    if (!jsonOutput) console.warn(pc.yellow("   ⚠️  Could not estimate gas, using default"));
-  }
+      const hash = await walletClient.sendTransaction({
+        to: sourceAccount.address,
+        authorizationList: [authorization],
+        gas: (estimatedGas * 135n) / 100n,
+        maxFeePerGas: fees.maxFeePerGas,
+        maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
+      });
 
-  // Получаем актуальную цену газа
-  let gasCostEth = 0;
-  try {
-    const fees = await publicClient.estimateFeesPerGas();
-    const gasPrice = fees.maxFeePerGas || fees.gasPrice || 1000000000n; // fallback 1 gwei
-    gasCostEth = Number(estimatedGas * gasPrice) / 1e18;
-  } catch {
-    // Fallback calculation
-    gasCostEth = Number(estimatedGas) * 0.00000005; // очень грубая оценка
-  }
+      if (!jsonOutput) {
+        console.log(pc.blue(`   📤 Transaction: ${hash}`));
+        console.log(`   🔗 ${network.blockExplorers?.default?.url}/tx/${hash}`);
+      }
 
-  const recommendedBalance = gasCostEth * 1.5; // 50% запас
+      const receipt = await publicClient.waitForTransactionReceipt({ 
+        hash, 
+        confirmations: 1, 
+        timeout: 90000 
+      });
 
-  if (!jsonOutput) {
-    console.log(pc.gray(`   Estimated gas cost: ~${gasCostEth.toFixed(6)} ${network.nativeCurrency.symbol}`));
-    console.log(pc.gray(`   Recommended balance: ~${recommendedBalance.toFixed(5)}`));
-  }
+      const success = receipt.status === 'success';
+      if (!jsonOutput) console.log(success ? pc.green("   ✅ SUCCESS") : pc.red("   ❌ FAILED"));
 
-  // Финальная проверка
-  if (balanceEth < recommendedBalance * 0.7) {
-    if (!jsonOutput) console.log(pc.red(`   ❌ Insufficient balance for safe execution`));
-    return false;
-  }
+      return success;
 
-  if (balanceEth < recommendedBalance) {
-    if (!jsonOutput) console.log(pc.yellow(`   ⚠️  Balance is low, but trying anyway...`));
-  }
+    } catch (err) {
+      if (attempt === MAX_RETRIES) {
+        if (!jsonOutput) console.error(pc.red(`   ❌ Failed after ${MAX_RETRIES} attempts:`), err.message);
+        throw err;
+      }
 
-  // ==================== Отправка транзакции ====================
-  try {
-    const hash = await walletClient.sendTransaction({
-      to: sourceAccount.address,
-      authorizationList: [authorization],
-      gas: (estimatedGas * 135n) / 100n,   // +35% margin
-    });
-
-    if (!jsonOutput) {
-      console.log(pc.blue(`   📤 Transaction: ${hash}`));
-      console.log(`   🔗 ${network.blockExplorers?.default?.url}/tx/${hash}`);
+      if (!jsonOutput) {
+        console.warn(pc.yellow(`   ⚠️  Attempt ${attempt} failed. Retrying in ${RETRY_DELAY/1000}s...`));
+      }
+      await sleep(RETRY_DELAY);
     }
-
-    const receipt = await publicClient.waitForTransactionReceipt({ 
-      hash, 
-      confirmations: 1, 
-      timeout: 90000 
-    });
-
-    const success = receipt.status === 'success';
-    if (!jsonOutput) console.log(success ? pc.green("   ✅ SUCCESS") : pc.red("   ❌ FAILED"));
-
-    return success;
-
-  } catch (err) {
-    if (!jsonOutput) console.error(pc.red("   ❌ Error:"), err.message);
-    return false;
   }
 }
