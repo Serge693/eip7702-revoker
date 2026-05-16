@@ -3,15 +3,14 @@ import { createPublicClient, createWalletClient, http, zeroAddress, parseEther }
 import pc from 'picocolors';
 
 const MIN_BALANCE_PER_CHAIN = {
-  1:    0.012,   // Ethereum Mainnet — выше
-  10:   0.004,   // Optimism
-  42161: 0.004,  // Arbitrum
+  1:    0.008,   // Ethereum
+  10:   0.003,   // Optimism
+  42161: 0.003,  // Arbitrum
   8453:  0.003,  // Base
-  137:   0.005,  // Polygon
-  56:    0.003,  // BNB Chain
-  100:   0.006,  // Gnosis
-  59144: 0.004,  // Linea
-  81457: 0.003,  // Blast
+  137:   0.004,  // Polygon
+  56:    0.002,  // BNB Chain
+  100:   0.005,  // Gnosis
+  59144: 0.003,  // Linea
 };
 
 function getMinBalanceForChain(chainId) {
@@ -21,9 +20,12 @@ function getMinBalanceForChain(chainId) {
 export async function checkCurrentDelegation(publicClient, address) {
   try {
     const code = await publicClient.getCode({ address });
-    return { delegated: code && code !== '0x' && code !== '0x0' };
+    return { 
+      delegated: code && code !== '0x' && code !== '0x0',
+      hasCode: code && code !== '0x' && code !== '0x0'
+    };
   } catch {
-    return { delegated: false };
+    return { delegated: false, hasCode: false };
   }
 }
 
@@ -39,24 +41,30 @@ export async function sendEIP7702Tx({
   const transport = customRpc ? http(customRpc) : http(network.rpcUrls.default.http[0]);
 
   const publicClient = createPublicClient({ chain: network, transport });
-  const walletClient = createWalletClient({ account: sponsorAccount, chain: network, transport });
+  const walletClient = createWalletClient({ 
+    account: sponsorAccount, 
+    chain: network, 
+    transport 
+  });
 
   console.log(pc.cyan(`\n→ ${network.name} (Chain ID: ${network.id})`));
 
-  // === Динамическая проверка баланса спонсора ===
-  const sponsorBalance = await publicClient.getBalance({ address: sponsorAccount.address });
-  const balance = Number(sponsorBalance) / 1e18;
-  const minBalance = getMinBalanceForChain(network.id);
+  // ====================== 1. Проверка делегации ПЕРЕД подписью ======================
+  const delegation = await checkCurrentDelegation(publicClient, sourceAccount.address);
 
-  console.log(`   Sponsor balance: ${balance.toFixed(4)} ${network.nativeCurrency.symbol}`);
-  console.log(pc.gray(`   Minimum recommended: ${minBalance} ${network.nativeCurrency.symbol}`));
-
-  if (balance < minBalance) {
-    console.log(pc.red(`   ❌ Insufficient sponsor balance. Need at least ${minBalance}`));
-    return false;
+  if (!delegation.delegated && contractAddress === zeroAddress) {
+    console.log(pc.yellow("   ⚠️  No active delegation detected. Nothing to revoke."));
+    console.log(pc.gray("   Skipping this network to save gas and signature.\n"));
+    return true; // считаем успешным, чтобы не ломать цикл
   }
 
-  // Получаем pending nonce
+  if (delegation.delegated) {
+    console.log(pc.yellow("   ⚠️  Active delegation detected"));
+  } else {
+    console.log(pc.green("   ✓ No active delegation"));
+  }
+
+  // ====================== 2. Nonce ======================
   const nonce = manualNonce !== null 
     ? Number(manualNonce)
     : await publicClient.getTransactionCount({ 
@@ -65,11 +73,12 @@ export async function sendEIP7702Tx({
       });
 
   if (manualNonce !== null) {
-    console.log(pc.yellow(`   ⚠️  Using manual nonce: ${nonce}`));
+    console.log(pc.yellow(`   ⚠️  Using MANUAL nonce: ${nonce} (use with caution)`));
   } else {
     console.log(pc.gray(`   Nonce: ${nonce}`));
   }
 
+  // ====================== 3. Подпись авторизации ======================
   const authorization = await sourceAccount.signAuthorization({
     contractAddress,
     chainId: network.id,
@@ -78,19 +87,30 @@ export async function sendEIP7702Tx({
 
   console.log(pc.green("   ✅ Authorization signed"));
 
-  // === Dry-run с подробной информацией ===
+  // ====================== 4. Dry-run ======================
   if (dryRun) {
-    console.log(pc.yellow("\n   🧪 DRY-RUN MODE"));
-    console.log(pc.gray(`   Target:     ${sourceAccount.address}`));
-    console.log(pc.gray(`   Delegate:   ${contractAddress}`));
-    console.log(pc.gray(`   Chain ID:   ${network.id}`));
-    console.log(pc.gray(`   Nonce:      ${nonce}`));
-    console.log(pc.gray(`   Auth hash:  ${authorization.authorizationHash?.slice(0, 20)}...`));
+    console.log(pc.yellow("\n   🧪 DRY-RUN MODE — Detailed preview:"));
+    console.log(pc.gray(`   • Target:     ${sourceAccount.address}`));
+    console.log(pc.gray(`   • Delegate:   ${contractAddress}`));
+    console.log(pc.gray(`   • Chain:      ${network.id} (${network.name})`));
+    console.log(pc.gray(`   • Nonce:      ${nonce}`));
     console.log(pc.yellow("   Transaction will NOT be sent.\n"));
     return true;
   }
 
-  // === Улучшенная оценка газа ===
+  // ====================== 5. Динамическая проверка баланса спонсора ======================
+  const sponsorBalance = await publicClient.getBalance({ address: sponsorAccount.address });
+  const balanceEth = Number(sponsorBalance) / 1e18;
+  const minRecommended = getMinBalanceForChain(network.id);
+
+  console.log(`   Sponsor balance: ${balanceEth.toFixed(4)} ${network.nativeCurrency.symbol}`);
+
+  if (balanceEth < minRecommended * 0.7) { // жёсткий порог
+    console.log(pc.red(`   ❌ Insufficient sponsor balance (need ~${minRecommended})`));
+    return false;
+  }
+
+  // ====================== 6. Отправка транзакции ======================
   let gas = 120000n;
   try {
     gas = await publicClient.estimateGas({
@@ -98,19 +118,18 @@ export async function sendEIP7702Tx({
       to: sourceAccount.address,
       authorizationList: [authorization],
     });
-    console.log(pc.gray(`   Gas estimated: ${gas}`));
   } catch (e) {
-    console.warn(pc.yellow("   ⚠️  Gas estimation failed, using safe default 120000"));
+    console.warn(pc.yellow("   ⚠️  Gas estimation failed, using default"));
   }
 
   const hash = await walletClient.sendTransaction({
     to: sourceAccount.address,
     authorizationList: [authorization],
-    gas: (gas * 135n) / 100n,        // +35% margin
+    gas: (gas * 135n) / 100n,
   });
 
   console.log(pc.blue(`   📤 Transaction: ${hash}`));
-  console.log(`   🔗 Explorer: ${network.blockExplorers?.default?.url}/tx/${hash}`);
+  console.log(`   🔗 ${network.blockExplorers?.default?.url}/tx/${hash}`);
 
   const receipt = await publicClient.waitForTransactionReceipt({ 
     hash, 
