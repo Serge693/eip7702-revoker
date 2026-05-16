@@ -1,92 +1,62 @@
 // delegate.mjs
 import { Command } from 'commander';
-import { createPublicClient, createWalletClient, http, formatEther } from 'viem';
 import * as cfg from './config.mjs';
+import { sendEIP7702Tx } from './eip7702-utils.mjs';
+import { mainnet, base, arbitrum, optimism, polygon, bsc, gnosis, linea, blast } from 'viem/chains';
+import pc from 'picocolors';
 
 const program = new Command();
 
 program
-    .name('delegate')
-    .description('EIP-7702 Delegator — Delegate to a new address')
-    .option('-n, --network <networks>', 'Networks (comma separated) or all', 'base')
-    .option('-d, --delay <ms>', 'Delay between networks (ms)', '800')
-    .parse();
+  .name('delegate')
+  .description('Delegate EIP-7702 authorization to a contract address')
+  .option('-n, --network <networks>', 'Networks (comma separated) or "all"', 'base')
+  .option('--dry-run', 'Simulate only')
+  .option('--rpc <url>', 'Custom RPC URL')
+  .option('--nonce <number>', 'Manual nonce')
+  .option('-y, --yes', 'Skip confirmation')
+  .parse();
 
-const options = program.opts();
-const networksInput = options.network;
-const delay = parseInt(options.delay);
+const opts = program.opts();
 
-if (!cfg.DELEGATE_TO) {
-    console.error("❌ Error: Please set DELEGATE_TO in your .env file");
-    process.exit(1);
-}
-
-async function delegateOnNetwork(network) {
-    console.log(`\n🔄 Delegate → ${network.name} (Chain ID: ${network.id})`);
-
-    const publicClient = createPublicClient({ chain: network, transport: http() });
-    const walletClient = createWalletClient({ 
-        account: cfg.sponsorAccount, 
-        chain: network, 
-        transport: http() 
-    });
-
-    try {
-        const sponsorBalance = await publicClient.getBalance({ address: cfg.sponsorAccount.address });
-        console.log(`   Sponsor balance: ${formatEther(sponsorBalance)} ${network.nativeCurrency.symbol}`);
-
-        if (sponsorBalance < 3n * 10n ** 15n) {
-            console.log(`   ❌ Sponsor has insufficient balance`);
-            return false;
-        }
-
-        const nonce = await publicClient.getTransactionCount({ address: cfg.victimAccount.address });
-
-        const authorization = await cfg.victimAccount.signAuthorization({
-            contractAddress: cfg.DELEGATE_TO,
-            chainId: network.id,
-            nonce,
-        });
-
-        console.log(`   ✅ Authorization signed`);
-
-        const hash = await walletClient.sendTransaction({
-            to: cfg.victimAccount.address,
-            authorizationList: [authorization],
-            gas: 450000n,
-        });
-
-        console.log(`   📤 Hash: ${hash}`);
-        console.log(`   🔗 ${network.blockExplorers.default.url}/tx/${hash}`);
-
-        const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
-        console.log(`   ${receipt.status === 'success' ? '✅ SUCCESSFULLY DELEGATED' : '❌ FAILED'}`);
-        return true;
-
-    } catch (err) {
-        console.log(`   ❌ Error: ${err.shortMessage || err.message}`);
-        return false;
-    }
-}
+const networksMap = { mainnet, base, arbitrum, optimism, polygon, bsc, gnosis, linea, blast };
 
 async function main() {
-    console.log(`🚀 EIP-7702 Multi-Delegator`);
-    console.log(`Victim: ${cfg.victimAccount.address}`);
-    console.log(`Delegate to: ${cfg.DELEGATE_TO}\n`);
+  console.log(pc.bold(pc.magenta("\n🔄 EIP-7702 Delegator v1.3.0\n")));
 
-    const networks = cfg.getNetworks(networksInput);
+  if (!cfg.DELEGATE_TO) {
+    console.error(pc.red("❌ DELEGATE_TO is not set in .env"));
+    process.exit(1);
+  }
 
-    for (const network of networks) {
-        await delegateOnNetwork(network);
-        if (networks.indexOf(network) !== networks.length - 1) {
-            await new Promise(r => setTimeout(r, delay));
-        }
+  let selectedNetworks = [];
+  if (opts.network.toLowerCase() === 'all') {
+    selectedNetworks = Object.values(networksMap);
+  } else {
+    const names = opts.network.toLowerCase().split(',').map(n => n.trim());
+    selectedNetworks = names.map(name => networksMap[name]).filter(Boolean);
+  }
+
+  for (const network of selectedNetworks) {
+    try {
+      await sendEIP7702Tx({
+        network,
+        victimAccount: cfg.victimAccount,
+        sponsorAccount: cfg.sponsorAccount,
+        contractAddress: cfg.DELEGATE_TO,
+        dryRun: opts.dryRun,
+        customRpc: opts.rpc,
+        manualNonce: opts.nonce ? Number(opts.nonce) : null
+      });
+    } catch (err) {
+      console.error(pc.red(`   Error on ${network.name}:`), err.message);
     }
+  }
 
-    console.log(`\n✅ All operations completed!`);
+  console.log(pc.green("\n🎉 All done!"));
 }
 
 main().catch(err => {
-    console.error("\n💥 Critical error:", err.message);
-    process.exit(1);
+  console.error(pc.red("\n💥 Critical error:"), err.message);
+  process.exit(1);
 });
