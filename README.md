@@ -28,6 +28,7 @@ cd eip7702-revoker
 npm install
 cp .env.example .env
 
+```
 ---
 
 ### Installation
