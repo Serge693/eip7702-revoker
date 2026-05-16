@@ -30,9 +30,9 @@ const rl = readline.createInterface({
 async function confirmAction(networkNames) {
   if (opts.yes || opts.dryRun || opts.json) return true;
 
-  console.log(pc.yellow(`\n⚠️  You are about to revoke EIP-7702 delegation on ${networkNames.length} network(s):`));
+  console.log(pc.yellow(`\n⚠️  You are about to REVOKE EIP-7702 delegation on ${networkNames.length} network(s):`));
   console.log(pc.cyan(networkNames.join(', ')));
-  console.log(pc.yellow("This action cannot be easily undone.\n"));
+  console.log(pc.yellow("\nThis action cannot be easily undone.\n"));
 
   const answer = await rl.question('Type "yes" to continue: ');
   rl.close();
@@ -70,40 +70,35 @@ async function main() {
   }
 
   if (!opts.json) {
-    console.log(pc.cyan(`Target networks: ${networkNames.join(', ')}`));
+    console.log(pc.cyan(`Starting revocation on ${networkNames.join(', ')}`));
   }
 
-  const results = [];
+  // === Конкурентная обработка ===
+  const tasks = selectedNetworks.map(network =>
+    sendEIP7702Tx({
+      network,
+      sourceAccount: cfg.sourceAccount,
+      sponsorAccount: cfg.sponsorAccount,
+      contractAddress: zeroAddress,
+      dryRun: opts.dryRun,
+      customRpc: opts.rpc,
+      manualNonce: opts.nonce ? Number(opts.nonce) : null,
+      jsonOutput: opts.json
+    }).then(success => ({ network: network.name, success }))
+      .catch(err => ({
+        network: network.name,
+        success: false,
+        error: err.message
+      }))
+  );
 
-  for (const network of selectedNetworks) {
-    try {
-      const success = await sendEIP7702Tx({
-        network,
-        sourceAccount: cfg.sourceAccount,
-        sponsorAccount: cfg.sponsorAccount,
-        contractAddress: zeroAddress,
-        dryRun: opts.dryRun,
-        customRpc: opts.rpc,
-        manualNonce: opts.nonce ? Number(opts.nonce) : null,
-        jsonOutput: opts.json
-      });
-
-      results.push({ network: network.name, success });
-    } catch (err) {
-      const errorMsg = err.message || 'Unknown error';
-      if (opts.json) {
-        console.log(JSON.stringify({ network: network.name, success: false, error: errorMsg }));
-      } else {
-        console.error(pc.red(`   Error on ${network.name}:`), errorMsg);
-      }
-      results.push({ network: network.name, success: false, error: errorMsg });
-    }
-  }
+  const results = await Promise.allSettled(tasks);
+  const finalResults = results.map(r => r.value || r.reason);
 
   if (opts.json) {
-    console.log(JSON.stringify({ 
-      success: results.every(r => r.success), 
-      results 
+    console.log(JSON.stringify({
+      success: finalResults.every(r => r.success),
+      results: finalResults
     }));
   } else {
     console.log(pc.green("\n🎉 All done!"));
