@@ -47,7 +47,7 @@ npm run revoke -- --network all --dry-run
 
 ```
 
-# Network aliases supported:
+## Network aliases supported:
 
 bsc, bnb, BNB Chain, arbitrum one, ethereum, matic, etc.
 
