@@ -16,6 +16,7 @@ program
   .option('--rpc <url>', 'Custom RPC URL')
   .option('--nonce <number>', 'Manual nonce')
   .option('-y, --yes', 'Skip all confirmations')
+  .option('--force', 'Force delegation even to EOA')
   .option('--json', 'Output result as JSON')
   .parse();
 
@@ -29,15 +30,23 @@ const rl = readline.createInterface({
 async function confirmAction(networkNames, delegateTo) {
   if (opts.yes || opts.dryRun || opts.json) return true;
 
-  console.log(pc.yellow(`\n⚠️  You are about to DELEGATE EIP-7702 authorization to:`));
+  console.log(pc.yellow(`\n⚠️  You are about to DELEGATE to:`));
   console.log(pc.cyan(`   ${delegateTo}`));
   console.log(pc.yellow(`\nOn ${networkNames.length} network(s):`));
   console.log(pc.cyan(networkNames.join(', ')));
-  console.log(pc.yellow("\nThis action is significant and cannot be easily undone.\n"));
 
-  const answer = await rl.question('Type "yes" to continue: ');
+  const answer = await rl.question('\nType "yes" to continue: ');
   rl.close();
   return answer.toLowerCase() === 'yes';
+}
+
+async function isContract(publicClient, address) {
+  try {
+    const code = await publicClient.getCode({ address });
+    return code && code !== '0x' && code !== '0x0';
+  } catch {
+    return false;
+  }
 }
 
 async function main() {
@@ -46,11 +55,8 @@ async function main() {
   }
 
   if (!cfg.DELEGATE_TO) {
-    if (opts.json) {
-      console.log(JSON.stringify({ success: false, error: "DELEGATE_TO_not_set" }));
-    } else {
-      console.error(pc.red("❌ DELEGATE_TO is not set in .env"));
-    }
+    if (opts.json) console.log(JSON.stringify({ success: false, error: "DELEGATE_TO_not_set" }));
+    else console.error(pc.red("❌ DELEGATE_TO is not set in .env"));
     process.exit(1);
   }
 
@@ -74,48 +80,65 @@ async function main() {
 
   const networkNames = selectedNetworks.map(n => n.name);
 
-  // Запрос подтверждения
+  // === Защита от делегации на EOA ===
+  if (!opts.force && !opts.dryRun && !opts.json) {
+    console.log(pc.cyan(`\nChecking if ${cfg.DELEGATE_TO} is a contract...`));
+    const isContractCheck = await isContract(
+      createPublicClient({ chain: selectedNetworks[0] }), 
+      cfg.DELEGATE_TO
+    );
+
+    if (!isContractCheck) {
+      console.log(pc.red("\n⚠️  WARNING: Target address appears to be an EOA (Externally Owned Account)!"));
+      console.log(pc.red("   Delegating to EOA is dangerous and usually a mistake."));
+      
+      const forceAnswer = await rl.question('Do you want to continue anyway? (type "force"): ');
+      if (forceAnswer.toLowerCase() !== 'force') {
+        console.log(pc.yellow("Operation cancelled."));
+        process.exit(0);
+      }
+    } else {
+      console.log(pc.green("   ✓ Target is a smart contract"));
+    }
+  }
+
+  // Запрос общего подтверждения
   if (!await confirmAction(networkNames, cfg.DELEGATE_TO)) {
     console.log(pc.yellow("Operation cancelled by user."));
     process.exit(0);
   }
 
   if (!opts.json) {
-    console.log(pc.cyan(`Target networks: ${networkNames.join(', ')}`));
-    console.log(pc.cyan(`Delegate target: ${cfg.DELEGATE_TO}`));
+    console.log(pc.cyan(`\nStarting delegation on ${networkNames.join(', ')}`));
   }
 
-  const results = [];
+  // === Конкурентная обработка (параллельно) ===
+  const tasks = selectedNetworks.map(network => 
+    sendEIP7702Tx({
+      network,
+      sourceAccount: cfg.sourceAccount,
+      sponsorAccount: cfg.sponsorAccount,
+      contractAddress: cfg.DELEGATE_TO,
+      dryRun: opts.dryRun,
+      customRpc: opts.rpc,
+      manualNonce: opts.nonce ? Number(opts.nonce) : null,
+      jsonOutput: opts.json
+    }).then(success => ({ network: network.name, success }))
+      .catch(err => ({ 
+        network: network.name, 
+        success: false, 
+        error: err.message 
+      }))
+  );
 
-  for (const network of selectedNetworks) {
-    try {
-      const success = await sendEIP7702Tx({
-        network,
-        sourceAccount: cfg.sourceAccount,
-        sponsorAccount: cfg.sponsorAccount,
-        contractAddress: cfg.DELEGATE_TO,
-        dryRun: opts.dryRun,
-        customRpc: opts.rpc,
-        manualNonce: opts.nonce ? Number(opts.nonce) : null,
-        jsonOutput: opts.json
-      });
+  const results = await Promise.allSettled(tasks);
 
-      results.push({ network: network.name, success });
-    } catch (err) {
-      const errorMsg = err.message || 'Unknown error';
-      if (opts.json) {
-        console.log(JSON.stringify({ network: network.name, success: false, error: errorMsg }));
-      } else {
-        console.error(pc.red(`   Error on ${network.name}:`), errorMsg);
-      }
-      results.push({ network: network.name, success: false, error: errorMsg });
-    }
-  }
+  const finalResults = results.map(r => r.value || r.reason);
 
   if (opts.json) {
     console.log(JSON.stringify({ 
-      success: results.every(r => r.success), 
-      results 
+      success: finalResults.every(r => r.success), 
+      results: finalResults 
     }));
   } else {
     console.log(pc.green("\n🎉 All done!"));
