@@ -1,36 +1,23 @@
 {
   "name": "eip7702-revoker",
-  "version": "1.2.0",
-  "description": "Powerful CLI tool for revoking and delegating EIP-7702 authorizations across multiple networks with separate gas sponsor support.",
-  "main": "revoke.mjs",
+  "version": "1.3.0",
+  "description": "Powerful and secure CLI tool to revoke and delegate EIP-7702 authorizations with a separate gas sponsor account.",
   "type": "module",
   "scripts": {
     "revoke": "node revoke.mjs",
     "delegate": "node delegate.mjs",
     "revoke:all": "node revoke.mjs --network all",
     "delegate:all": "node delegate.mjs --network all",
-    "help": "node revoke.mjs --help"
+    "help": "node revoke.mjs --help",
+    "help:delegate": "node delegate.mjs --help"
   },
-  "keywords": [
-    "eip-7702",
-    "eip7702",
-    "revoke",
-    "delegate",
-    "authorization",
-    "viem",
-    "ethereum",
-    "base",
-    "arbitrum",
-    "security",
-    "drainer",
-    "web3",
-    "blockchain"
-  ],
+  "keywords": ["eip-7702", "eip7702", "revoke", "delegate", "authorization", "viem", "ethereum", "security", "drainer"],
   "author": "Serge693",
   "license": "MIT",
   "dependencies": {
     "commander": "^13.1.0",
     "dotenv": "^16.4.7",
+    "picocolors": "^1.1.1",
     "viem": "^2.48.11"
   },
   "engines": {
@@ -39,9 +26,5 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Serge693/eip7702-revoker.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Serge693/eip7702-revoker/issues"
-  },
-  "homepage": "https://github.com/Serge693/eip7702-revoker#readme"
+  }
 }
