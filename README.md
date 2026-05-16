@@ -1,23 +1,32 @@
 # 🔥 EIP-7702 Revoker & Delegator
 
-Powerful and secure CLI tool to **revoke** and **delegate** EIP-7702 authorizations with a separate gas sponsor account.
+**Powerful and secure CLI tool** to revoke and set EIP-7702 delegations with the ability to pay gas from a separate sponsor account.
 
----
+> EIP-7702 allows EOAs (regular wallets) to temporarily behave like smart contracts. While powerful, it also introduces risks — malicious delegations can drain your funds. This tool helps you quickly and safely revoke them.
 
-### Features
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green)](https://nodejs.org/)
 
-- Revoke malicious or unwanted delegations (reset to zero address)
-- Delegate to any address
-- Separate **sponsor account** for gas payments (highly recommended)
-- Support for multiple networks simultaneously
-- Automatic balance check
-- User-friendly CLI
+## ✨ Features
 
----
+- **Revoke** — reset delegation to `address(0)`
+- **Delegate** — set new delegation
+- **Gas Sponsor** support — your main account doesn't spend any gas (highly recommended)
+- Works across **multiple networks** simultaneously
+- Automatic balance checking
+- Clean CLI with delay support
 
-### Supported Networks
+## 🌐 Supported Networks
 
-Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Gnosis, Linea, Blast, Mode, Soneium, zkSync.
+**Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Gnosis, Linea, Blast, Mode, Soneium, zkSync.**
+
+## 📥 Installation
+
+```bash
+git clone https://github.com/Serge693/eip7702-revoker.git
+cd eip7702-revoker
+npm install
+cp .env.example .env
 
 ---
 
