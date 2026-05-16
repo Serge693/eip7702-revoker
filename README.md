@@ -28,7 +28,7 @@ cp .env.example .env
 ```
 ---
 
-# Edit .env with your private keys.
+## Edit .env with your private keys.
 
 ## Usage
 
