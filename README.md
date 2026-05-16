@@ -33,29 +33,27 @@ cp .env.example .env
 ## Usage
 
 ```bash
-# Help
-npm run help
 
-# Revoke on Base only
-npm run revoke
-
-# Revoke on multiple networks
-npm run revoke -- --network base,arbitrum,optimism
-
-# Revoke on all supported networks
+# Revoke
+npm run revoke -- --network base
+npm run revoke -- --network arbitrum,polygon,bsc
 npm run revoke:all
 
-# Dry run
-npm run revoke -- --network all --dry-run
+# Delegate
+npm run delegate -- --network base
 
-# With custom RPC
-npm run revoke -- --network base --rpc https://your-rpc.com
+# Safe check first
+npm run revoke -- --network all --dry-run
 
 ```
 
 # Same commands work for delegate.
 
 ---
+
+# Network aliases supported:
+
+bsc, bnb, BNB Chain, arbitrum one, ethereum, matic, etc.
 
 ## Security Recommendations
 
@@ -68,12 +66,6 @@ Store private keys securely (hardware wallet preferred).
 Verify that a delegation is actually malicious before mass-revoking.
 
 After revoking, check your status on eip7702.app or in your wallet.
-
----
-
-## Supported Networks
-
-Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Gnosis, Linea, Blast, and more.
 
 ---
 
