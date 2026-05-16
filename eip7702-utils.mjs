@@ -1,11 +1,6 @@
 // eip7702-utils.mjs
-import { createPublicClient, createWalletClient, http, zeroAddress } from 'viem';
+import { createPublicClient, createWalletClient, http, zeroAddress, parseEther } from 'viem';
 import pc from 'picocolors';
-
-const MIN_BALANCE_PER_CHAIN = {
-  1: 0.008, 42161: 0.003, 8453: 0.003, 10: 0.003,
-  137: 0.004, 56: 0.002, 100: 0.005, 59144: 0.003,
-};
 
 export async function sendEIP7702Tx({
   network,
@@ -19,86 +14,125 @@ export async function sendEIP7702Tx({
 }) {
   const transport = customRpc ? http(customRpc) : http(network.rpcUrls.default.http[0]);
   const publicClient = createPublicClient({ chain: network, transport });
-  const walletClient = createWalletClient({ account: sponsorAccount, chain: network, transport });
+  const walletClient = createWalletClient({ 
+    account: sponsorAccount, 
+    chain: network, 
+    transport 
+  });
 
-  const result = { network: network.name, chainId: network.id, success: false };
+  if (!jsonOutput) console.log(pc.cyan(`\n→ ${network.name} (Chain ID: ${network.id})`));
 
-  console.log(pc.cyan(`\n→ ${network.name} (Chain ID: ${network.id})`));
-
-  // 1. Проверка текущего байткода (делегации)
+  // 1. Проверка текущей делегации
   const code = await publicClient.getCode({ address: sourceAccount.address });
   const hasDelegation = code && code !== '0x' && code !== '0x0';
 
   if (!hasDelegation && contractAddress === zeroAddress) {
-    console.log(pc.yellow("   ⚠️  No active delegation. Nothing to revoke."));
-    if (jsonOutput) console.log(JSON.stringify({ ...result, skipped: true, reason: "no delegation" }));
+    if (!jsonOutput) console.log(pc.yellow("   ⚠️  No active delegation. Nothing to revoke."));
     return true;
   }
 
-  console.log(hasDelegation 
-    ? pc.yellow("   ⚠️  Active delegation detected") 
-    : pc.green("   ✓ No active delegation"));
+  if (!jsonOutput) {
+    console.log(hasDelegation 
+      ? pc.yellow("   ⚠️  Active delegation detected") 
+      : pc.green("   ✓ No active delegation"));
+  }
 
   // 2. Nonce
   const nonce = manualNonce !== null 
     ? Number(manualNonce)
-    : await publicClient.getTransactionCount({ address: sourceAccount.address, blockTag: 'pending' });
+    : await publicClient.getTransactionCount({ 
+        address: sourceAccount.address, 
+        blockTag: 'pending' 
+      });
 
-  // 3. Подпись
+  // 3. Подпись авторизации
   const authorization = await sourceAccount.signAuthorization({
     contractAddress,
     chainId: network.id,
     nonce,
   });
 
-  console.log(pc.green("   ✅ Authorization signed"));
+  if (!jsonOutput) console.log(pc.green("   ✅ Authorization signed"));
 
   if (dryRun) {
-    console.log(pc.yellow("   🧪 DRY-RUN MODE"));
-    if (jsonOutput) {
-      console.log(JSON.stringify({ ...result, dryRun: true, nonce, delegateTo: contractAddress }));
-    }
+    if (!jsonOutput) console.log(pc.yellow("   🧪 DRY-RUN MODE — transaction not sent"));
     return true;
   }
 
-  // 4. Динамическая проверка баланса + gas
-  const balance = await publicClient.getBalance({ address: sponsorAccount.address });
-  const balanceEth = Number(balance) / 1e18;
-  const minBal = MIN_BALANCE_PER_CHAIN[network.id] || 0.003;
+  // ==================== ДИНАМИЧЕСКАЯ ПРОВЕРКА БАЛАНСА ====================
+  const sponsorBalance = await publicClient.getBalance({ address: sponsorAccount.address });
+  const balanceEth = Number(sponsorBalance) / 1e18;
 
-  if (balanceEth < minBal) {
-    console.log(pc.red(`   ❌ Insufficient balance (${balanceEth.toFixed(4)} < ${minBal})`));
-    if (jsonOutput) console.log(JSON.stringify({ ...result, error: "insufficient_balance" }));
-    return false;
+  if (!jsonOutput) {
+    console.log(`   Sponsor balance: ${balanceEth.toFixed(5)} ${network.nativeCurrency.symbol}`);
   }
 
-  // 5. Отправка
-  let gas = 120000n;
+  // Оцениваем стоимость транзакции
+  let estimatedGas = 120000n;
   try {
-    gas = await publicClient.estimateGas({
+    estimatedGas = await publicClient.estimateGas({
       account: sponsorAccount,
       to: sourceAccount.address,
       authorizationList: [authorization],
     });
-  } catch {}
-
-  const hash = await walletClient.sendTransaction({
-    to: sourceAccount.address,
-    authorizationList: [authorization],
-    gas: (gas * 135n) / 100n,
-  });
-
-  console.log(pc.blue(`   📤 Tx: ${hash}`));
-  console.log(`   🔗 ${network.blockExplorers?.default?.url}/tx/${hash}`);
-
-  const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90000 });
-  result.success = receipt.status === 'success';
-
-  console.log(result.success ? pc.green("   ✅ SUCCESS") : pc.red("   ❌ FAILED"));
-
-  if (jsonOutput) {
-    console.log(JSON.stringify({ ...result, txHash: hash, status: receipt.status }));
+  } catch (e) {
+    if (!jsonOutput) console.warn(pc.yellow("   ⚠️  Could not estimate gas, using default"));
   }
 
-  return result.success;
+  // Получаем актуальную цену газа
+  let gasCostEth = 0;
+  try {
+    const fees = await publicClient.estimateFeesPerGas();
+    const gasPrice = fees.maxFeePerGas || fees.gasPrice || 1000000000n; // fallback 1 gwei
+    gasCostEth = Number(estimatedGas * gasPrice) / 1e18;
+  } catch {
+    // Fallback calculation
+    gasCostEth = Number(estimatedGas) * 0.00000005; // очень грубая оценка
+  }
+
+  const recommendedBalance = gasCostEth * 1.5; // 50% запас
+
+  if (!jsonOutput) {
+    console.log(pc.gray(`   Estimated gas cost: ~${gasCostEth.toFixed(6)} ${network.nativeCurrency.symbol}`));
+    console.log(pc.gray(`   Recommended balance: ~${recommendedBalance.toFixed(5)}`));
+  }
+
+  // Финальная проверка
+  if (balanceEth < recommendedBalance * 0.7) {
+    if (!jsonOutput) console.log(pc.red(`   ❌ Insufficient balance for safe execution`));
+    return false;
+  }
+
+  if (balanceEth < recommendedBalance) {
+    if (!jsonOutput) console.log(pc.yellow(`   ⚠️  Balance is low, but trying anyway...`));
+  }
+
+  // ==================== Отправка транзакции ====================
+  try {
+    const hash = await walletClient.sendTransaction({
+      to: sourceAccount.address,
+      authorizationList: [authorization],
+      gas: (estimatedGas * 135n) / 100n,   // +35% margin
+    });
+
+    if (!jsonOutput) {
+      console.log(pc.blue(`   📤 Transaction: ${hash}`));
+      console.log(`   🔗 ${network.blockExplorers?.default?.url}/tx/${hash}`);
+    }
+
+    const receipt = await publicClient.waitForTransactionReceipt({ 
+      hash, 
+      confirmations: 1, 
+      timeout: 90000 
+    });
+
+    const success = receipt.status === 'success';
+    if (!jsonOutput) console.log(success ? pc.green("   ✅ SUCCESS") : pc.red("   ❌ FAILED"));
+
+    return success;
+
+  } catch (err) {
+    if (!jsonOutput) console.error(pc.red("   ❌ Error:"), err.message);
+    return false;
+  }
 }
