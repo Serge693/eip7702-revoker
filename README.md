@@ -1,6 +1,6 @@
 # 🔥 EIP-7702 Revoker & Delegator
 
-**Powerful and secure CLI tool** to revoke and set EIP-7702 delegations with the ability to pay gas from a separate sponsor account.
+Powerful and secure CLI tool to revoke malicious EIP-7702 authorizations or delegate to a new contract with a separate gas sponsor account.
 
 > EIP-7702 allows EOAs (regular wallets) to temporarily behave like smart contracts. While powerful, it also introduces risks — malicious delegations can drain your funds. This tool helps you quickly and safely revoke them.
 
@@ -10,13 +10,12 @@
 ## Features
 
 - Separate sponsor account for gas
-- Revoke (reset to zero address) or delegate
-- Multi-network support (including L2s)
+- Revoke (zero address) or delegate
+- Support for many networks + easy aliases (`bsc`, `BNB Chain`, etc.)
 - `--dry-run` mode
-- Dynamic gas estimation + retry logic
-- Current delegation status check
-- Custom RPC support
-- Colorful and informative output
+- Improved gas estimation
+- Strong input validation
+- Deprecated `VICTIM_PRIVATE_KEY` support (use `SOURCE_PRIVATE_KEY`)
 
 ## Installation
 
