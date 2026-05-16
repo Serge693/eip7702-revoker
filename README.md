@@ -72,6 +72,12 @@ After revoking, check your status on eip7702.app or in your wallet.
 
 ---
 
+## Supported Networks
+
+Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Gnosis, Linea, Blast, and more.
+
+---
+
 ## How It Works
 
 The tool signs an EIP-7702 authorization from your main account and broadcasts the setCode transaction through the sponsor account. This way your main account spends zero gas and stays protected.Revoke = setting delegation to 0x0000000000000000000000000000000000000000.
