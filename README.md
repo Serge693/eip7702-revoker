@@ -1,19 +1,27 @@
 # 🔥 EIP-7702 Revoker & Delegator
 
-**Powerful CLI tool** to revoke malicious EIP-7702 delegations or delegate to a new contract with a separate gas sponsor account.
+Powerful and secure CLI tool to **revoke** and **delegate** EIP-7702 authorizations with a separate gas sponsor account.
 
-## Features
+---
 
-- Separate sponsor account for gas
-- Revoke (reset to zero address) or delegate
-- Multi-network support (including L2s)
-- `--dry-run` mode
-- Dynamic gas estimation + retry logic
-- Current delegation status check
-- Custom RPC support
-- Colorful and informative output
+### Features
 
-## Installation
+- Revoke malicious or unwanted delegations (reset to zero address)
+- Delegate to any address
+- Separate **sponsor account** for gas payments (highly recommended)
+- Support for multiple networks simultaneously
+- Automatic balance check
+- User-friendly CLI
+
+---
+
+### Supported Networks
+
+Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Gnosis, Linea, Blast, Mode, Soneium, zkSync.
+
+---
+
+### Installation
 
 ```bash
 git clone https://github.com/Serge693/eip7702-revoker.git
@@ -21,59 +29,34 @@ cd eip7702-revoker
 npm install
 cp .env.example .env
 
----
+Edit the .env file and add your private keys.Usagebash
 
-Edit the `.env` file and add your private keys.
-
----
-
-### Usage
-
-```bash
-
-# Help
+# Show help
 npm run help
 
-# Revoke on Base only
-npm run revoke
-
-# Revoke on multiple networks
+# Revoke examples
+npm run revoke                    # on Base (default)
+npm run revoke -- --network arbitrum
 npm run revoke -- --network base,arbitrum,optimism
+npm run revoke:all                # on all networks
 
-# Revoke on all supported networks
-npm run revoke:all
+# Delegate examples
+npm run delegate
+npm run delegate -- --network base,arbitrum
+npm run delegate:all
 
-# Dry run
-npm run revoke -- --network all --dry-run
+With custom delay:bash
 
-# With custom RPC
-npm run revoke -- --network base --rpc https://your-rpc.com
+npm run revoke -- --network all --delay 1500
 
-```
+Direct commandsbash
 
----
+node revoke.mjs --network all
+node delegate.mjs --network base,arbitrum
 
-### Same commands work for delegate.
+Security RecommendationsAlways use a separate sponsor account with small balance
+Never commit your .env file
+.env is ignored by .gitignore
 
----
-
-### Security Recommendations
-
-Always use a separate sponsor account with minimal balance.
-
-Never commit your .env file.
-
-Consider running from a clean VM or Tails OS for maximum security.
-
-After revoking, it is recommended to change the victim's private key.
-
----
-
-### License
-
-MIT © Serge693
-
-### Supported Networks
-
-Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Gnosis, Linea, Blast, and more.
+LicenseMIT © Serge693
 
