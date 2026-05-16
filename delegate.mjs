@@ -15,15 +15,22 @@ program
   .option('--rpc <url>', 'Custom RPC URL')
   .option('--nonce <number>', 'Manual nonce')
   .option('-y, --yes', 'Skip confirmation')
+  .option('--json', 'Output result as JSON')
   .parse();
 
 const opts = program.opts();
 
 async function main() {
-  console.log(pc.bold(pc.magenta("\n🔄 EIP-7702 Delegator v1.4.0\n")));
+  if (!opts.json) {
+    console.log(pc.bold(pc.magenta("\n🔄 EIP-7702 Delegator v1.4.0\n")));
+  }
 
   if (!cfg.DELEGATE_TO) {
-    console.error(pc.red("❌ DELEGATE_TO is not set in .env"));
+    if (opts.json) {
+      console.log(JSON.stringify({ success: false, error: "DELEGATE_TO_not_set" }));
+    } else {
+      console.error(pc.red("❌ DELEGATE_TO is not set in .env"));
+    }
     process.exit(1);
   }
 
@@ -40,32 +47,60 @@ async function main() {
   }
 
   if (selectedNetworks.length === 0) {
-    console.error(pc.red("No valid networks selected"));
+    if (opts.json) {
+      console.log(JSON.stringify({ success: false, error: "no_valid_networks" }));
+    } else {
+      console.error(pc.red("No valid networks selected"));
+    }
     process.exit(1);
   }
 
-  console.log(pc.cyan(`Target networks: ${selectedNetworks.map(n => n.name).join(', ')}`));
+  if (!opts.json) {
+    console.log(pc.cyan(`Target networks: ${selectedNetworks.map(n => n.name).join(', ')}`));
+  }
+
+  const results = [];
 
   for (const network of selectedNetworks) {
     try {
-      await sendEIP7702Tx({
+      const success = await sendEIP7702Tx({
         network,
         sourceAccount: cfg.sourceAccount,
         sponsorAccount: cfg.sponsorAccount,
         contractAddress: cfg.DELEGATE_TO,
         dryRun: opts.dryRun,
         customRpc: opts.rpc,
-        manualNonce: opts.nonce ? Number(opts.nonce) : null
+        manualNonce: opts.nonce ? Number(opts.nonce) : null,
+        jsonOutput: opts.json
       });
+      
+      results.push({ network: network.name, success });
     } catch (err) {
-      console.error(pc.red(`   Error on ${network.name}:`), err.message);
+      const errorMsg = err.message || 'Unknown error';
+      if (opts.json) {
+        console.log(JSON.stringify({ network: network.name, success: false, error: errorMsg }));
+      } else {
+        console.error(pc.red(`   Error on ${network.name}:`), errorMsg);
+      }
+      results.push({ network: network.name, success: false, error: errorMsg });
     }
   }
 
-  console.log(pc.green("\n🎉 All done!"));
+  if (opts.json) {
+    console.log(JSON.stringify({ 
+      success: results.every(r => r.success), 
+      results 
+    }));
+  } else {
+    console.log(pc.green("\n🎉 All done!"));
+  }
 }
 
 main().catch(err => {
-  console.error(pc.red("\n💥 Critical error:"), err.message);
+  if (opts.json) {
+    console.log(JSON.stringify({ success: false, error: err.message }));
+  } else {
+    console.error(pc.red("\n💥 Critical error:"), err.message);
+  }
   process.exit(1);
 });
