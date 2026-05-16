@@ -41,7 +41,7 @@ export async function sendEIP7702Tx({
   const balanceEth = Number(sponsorBalance) / 1e18;
   console.log(`   Sponsor balance: ${balanceEth.toFixed(4)} ${network.nativeCurrency.symbol}`);
 
-  if (balanceEth < MIN_SPONSOR_BALANCE) {
+  if (balanceEth < 0.003) {
     console.log(pc.red("   ❌ Insufficient sponsor balance"));
     return false;
   }
@@ -68,35 +68,44 @@ export async function sendEIP7702Tx({
     return true;
   }
 
-  let gas = 450000n;
+  // === Улучшенная оценка газа ===
+  let gas = 120000n; // Более высокий дефолт
+
   try {
     gas = await publicClient.estimateGas({
       account: sponsorAccount,
       to: victimAccount.address,
       authorizationList: [authorization],
     });
+    console.log(pc.gray(`   Gas estimated: ${gas}`));
   } catch (e) {
-    console.warn(pc.yellow("   ⚠️  Gas estimation failed, using default 450k"));
+    console.warn(pc.yellow(`   ⚠️  Gas estimation failed, using safe default 120000`));
   }
 
-  const hash = await walletClient.sendTransaction({
-    to: victimAccount.address,
-    authorizationList: [authorization],
-    gas,
-  });
+  try {
+    const hash = await walletClient.sendTransaction({
+      to: victimAccount.address,
+      authorizationList: [authorization],
+      gas: gas * 120n / 100n,   // +20% margin
+    });
 
-  console.log(pc.blue(`   📤 Transaction hash: ${hash}`));
-  console.log(`   🔗 Explorer: ${network.blockExplorers?.default?.url}/tx/${hash}`);
+    console.log(pc.blue(`   📤 Transaction hash: ${hash}`));
+    console.log(`   🔗 Explorer: ${network.blockExplorers?.default?.url}/tx/${hash}`);
 
-  const receipt = await publicClient.waitForTransactionReceipt({ 
-    hash, 
-    confirmations: 1,
-    timeout: 90000 
-  });
+    const receipt = await publicClient.waitForTransactionReceipt({ 
+      hash, 
+      confirmations: 1,
+      timeout: 90000 
+    });
 
-  const success = receipt.status === 'success';
-  console.log(success ? pc.green("   ✅ SUCCESS") : pc.red("   ❌ FAILED"));
-  return success;
+    const success = receipt.status === 'success';
+    console.log(success ? pc.green("   ✅ SUCCESS") : pc.red("   ❌ FAILED"));
+    return success;
+
+  } catch (err) {
+    console.error(pc.red("   ❌ Error sending transaction:"), err.message);
+    return false;
+  }
 }
 
 export const MIN_SPONSOR_BALANCE = 0.003;
