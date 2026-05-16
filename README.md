@@ -7,6 +7,10 @@ Powerful and secure CLI tool to revoke malicious EIP-7702 authorizations or dele
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green)](https://nodejs.org/)
 
+## 🌐 Поддерживаемые сети
+
+**Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Gnosis, Linea, Blast, Mode, Soneium, zkSync.**
+
 ## Features
 
 - Separate sponsor account for gas
