@@ -2,12 +2,31 @@
 import { createPublicClient, createWalletClient, http, zeroAddress, parseEther } from 'viem';
 import pc from 'picocolors';
 
-// Retry configuration
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000;
+const RETRY_DELAY = 2500;
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Проверка статуса делегации после выполнения
+async function verifyDelegationStatus(publicClient, address, expectedRevoked = true) {
+  try {
+    const code = await publicClient.getCode({ address });
+    const hasDelegation = code && code !== '0x' && code !== '0x0';
+
+    if (expectedRevoked) {
+      return !hasDelegation 
+        ? { success: true, message: "✓ Delegation successfully revoked (no code)" }
+        : { success: false, message: "⚠️  Delegation still present" };
+    } else {
+      return hasDelegation 
+        ? { success: true, message: "✓ Delegation active" }
+        : { success: false, message: "⚠️  No delegation detected" };
+    }
+  } catch (err) {
+    return { success: false, message: "❌ Could not verify status" };
+  }
 }
 
 export async function sendEIP7702Tx({
@@ -22,38 +41,29 @@ export async function sendEIP7702Tx({
 }) {
   const transport = customRpc ? http(customRpc) : http(network.rpcUrls.default.http[0]);
   const publicClient = createPublicClient({ chain: network, transport });
-  const walletClient = createWalletClient({ 
-    account: sponsorAccount, 
-    chain: network, 
-    transport 
-  });
+  const walletClient = createWalletClient({ account: sponsorAccount, chain: network, transport });
 
   if (!jsonOutput) console.log(pc.cyan(`\n→ ${network.name} (Chain ID: ${network.id})`));
 
-  // 1. Проверка делегации
-  const code = await publicClient.getCode({ address: sourceAccount.address });
-  const hasDelegation = code && code !== '0x' && code !== '0x0';
+  // Проверка перед операцией
+  const codeBefore = await publicClient.getCode({ address: sourceAccount.address });
+  const hasDelegationBefore = codeBefore && codeBefore !== '0x' && codeBefore !== '0x0';
 
-  if (!hasDelegation && contractAddress === zeroAddress) {
+  if (!hasDelegationBefore && contractAddress === zeroAddress) {
     if (!jsonOutput) console.log(pc.yellow("   ⚠️  No active delegation. Nothing to revoke."));
     return true;
   }
 
   if (!jsonOutput) {
-    console.log(hasDelegation 
+    console.log(hasDelegationBefore 
       ? pc.yellow("   ⚠️  Active delegation detected") 
       : pc.green("   ✓ No active delegation"));
   }
 
-  // 2. Nonce
   const nonce = manualNonce !== null 
     ? Number(manualNonce)
-    : await publicClient.getTransactionCount({ 
-        address: sourceAccount.address, 
-        blockTag: 'pending' 
-      });
+    : await publicClient.getTransactionCount({ address: sourceAccount.address, blockTag: 'pending' });
 
-  // 3. Подпись
   const authorization = await sourceAccount.signAuthorization({
     contractAddress,
     chainId: network.id,
@@ -67,10 +77,10 @@ export async function sendEIP7702Tx({
     return true;
   }
 
-  // ==================== Retry + EIP-1559 Gas Strategy ====================
+  // Основная операция с retry
+  let txHash = null;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // Динамическая оценка газа и fees
       const estimatedGas = await publicClient.estimateGas({
         account: sponsorAccount,
         to: sourceAccount.address,
@@ -79,7 +89,7 @@ export async function sendEIP7702Tx({
 
       const fees = await publicClient.estimateFeesPerGas();
 
-      const hash = await walletClient.sendTransaction({
+      txHash = await walletClient.sendTransaction({
         to: sourceAccount.address,
         authorizationList: [authorization],
         gas: (estimatedGas * 135n) / 100n,
@@ -88,31 +98,38 @@ export async function sendEIP7702Tx({
       });
 
       if (!jsonOutput) {
-        console.log(pc.blue(`   📤 Transaction: ${hash}`));
-        console.log(`   🔗 ${network.blockExplorers?.default?.url}/tx/${hash}`);
+        console.log(pc.blue(`   📤 Transaction: ${txHash}`));
+        console.log(`   🔗 ${network.blockExplorers?.default?.url}/tx/${txHash}`);
       }
 
-      const receipt = await publicClient.waitForTransactionReceipt({ 
-        hash, 
-        confirmations: 1, 
-        timeout: 90000 
-      });
-
-      const success = receipt.status === 'success';
-      if (!jsonOutput) console.log(success ? pc.green("   ✅ SUCCESS") : pc.red("   ❌ FAILED"));
-
-      return success;
-
+      break; // Успешно отправили
     } catch (err) {
-      if (attempt === MAX_RETRIES) {
-        if (!jsonOutput) console.error(pc.red(`   ❌ Failed after ${MAX_RETRIES} attempts:`), err.message);
-        throw err;
-      }
-
-      if (!jsonOutput) {
-        console.warn(pc.yellow(`   ⚠️  Attempt ${attempt} failed. Retrying in ${RETRY_DELAY/1000}s...`));
-      }
+      if (attempt === MAX_RETRIES) throw err;
+      if (!jsonOutput) console.warn(pc.yellow(`   ⚠️  Attempt ${attempt} failed, retrying...`));
       await sleep(RETRY_DELAY);
     }
   }
+
+  // Ожидание подтверждения
+  const receipt = await publicClient.waitForTransactionReceipt({ 
+    hash: txHash, 
+    confirmations: 1, 
+    timeout: 90000 
+  });
+
+  const success = receipt.status === 'success';
+  if (!jsonOutput) console.log(success ? pc.green("   ✅ Transaction confirmed") : pc.red("   ❌ Transaction failed"));
+
+  // === Проверка статуса через eip7702.app логику (локально) ===
+  if (success && !jsonOutput) {
+    console.log(pc.cyan("\n   🔍 Verifying final delegation status..."));
+    const verification = await verifyDelegationStatus(
+      publicClient, 
+      sourceAccount.address, 
+      contractAddress === zeroAddress
+    );
+    console.log(verification.message);
+  }
+
+  return success;
 }
