@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import * as cfg from './config.mjs';
 import { sendEIP7702Tx } from './eip7702-utils.mjs';
 import { networksMap, networkAliases } from './networks.mjs';
+import { createPublicClient, http } from 'viem';
 import pc from 'picocolors';
 import readline from 'readline/promises';
 
@@ -21,7 +22,6 @@ program
   .parse();
 
 const opts = program.opts();
-
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
@@ -30,7 +30,7 @@ const rl = readline.createInterface({
 async function confirmAction(networkNames, delegateTo) {
   if (opts.yes || opts.dryRun || opts.json) return true;
 
-  console.log(pc.yellow(`\n⚠️  You are about to DELEGATE to:`));
+  console.log(pc.yellow('\n⚠️  You are about to DELEGATE to:'));
   console.log(pc.cyan(`   ${delegateTo}`));
   console.log(pc.yellow(`\nOn ${networkNames.length} network(s):`));
   console.log(pc.cyan(networkNames.join(', ')));
@@ -61,7 +61,6 @@ async function main() {
   }
 
   let selectedNetworks = [];
-
   if (opts.network.toLowerCase() === 'all') {
     selectedNetworks = Object.values(networksMap);
   } else {
@@ -83,15 +82,18 @@ async function main() {
   // === Защита от делегации на EOA ===
   if (!opts.force && !opts.dryRun && !opts.json) {
     console.log(pc.cyan(`\nChecking if ${cfg.DELEGATE_TO} is a contract...`));
-    const isContractCheck = await isContract(
-      createPublicClient({ chain: selectedNetworks[0] }), 
-      cfg.DELEGATE_TO
-    );
+
+    const testClient = createPublicClient({
+      chain: selectedNetworks[0],
+      transport: http(),
+    });
+
+    const isContractCheck = await isContract(testClient, cfg.DELEGATE_TO);
 
     if (!isContractCheck) {
-      console.log(pc.red("\n⚠️  WARNING: Target address appears to be an EOA (Externally Owned Account)!"));
-      console.log(pc.red("   Delegating to EOA is dangerous and usually a mistake."));
-      
+      console.log(pc.red("\n⚠️  WARNING: Target address appears to be an EOA!"));
+      console.log(pc.red("   Delegating to EOA is dangerous."));
+
       const forceAnswer = await rl.question('Do you want to continue anyway? (type "force"): ');
       if (forceAnswer.toLowerCase() !== 'force') {
         console.log(pc.yellow("Operation cancelled."));
@@ -102,7 +104,6 @@ async function main() {
     }
   }
 
-  // Запрос общего подтверждения
   if (!await confirmAction(networkNames, cfg.DELEGATE_TO)) {
     console.log(pc.yellow("Operation cancelled by user."));
     process.exit(0);
@@ -112,8 +113,7 @@ async function main() {
     console.log(pc.cyan(`\nStarting delegation on ${networkNames.join(', ')}`));
   }
 
-  // === Конкурентная обработка (параллельно) ===
-  const tasks = selectedNetworks.map(network => 
+  const tasks = selectedNetworks.map(network =>
     sendEIP7702Tx({
       network,
       sourceAccount: cfg.sourceAccount,
@@ -124,21 +124,20 @@ async function main() {
       manualNonce: opts.nonce ? Number(opts.nonce) : null,
       jsonOutput: opts.json
     }).then(success => ({ network: network.name, success }))
-      .catch(err => ({ 
-        network: network.name, 
-        success: false, 
-        error: err.message 
+      .catch(err => ({
+        network: network.name,
+        success: false,
+        error: err.message
       }))
   );
 
   const results = await Promise.allSettled(tasks);
-
   const finalResults = results.map(r => r.value || r.reason);
 
   if (opts.json) {
-    console.log(JSON.stringify({ 
-      success: finalResults.every(r => r.success), 
-      results: finalResults 
+    console.log(JSON.stringify({
+      success: finalResults.every(r => r.success),
+      results: finalResults
     }));
   } else {
     console.log(pc.green("\n🎉 All done!"));
