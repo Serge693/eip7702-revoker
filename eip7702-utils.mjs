@@ -1,5 +1,6 @@
 // eip7702-utils.mjs
-import { createPublicClient, createWalletClient, http, zeroAddress, parseEther } from 'viem';
+
+import { createPublicClient, createWalletClient, http, zeroAddress } from 'viem';
 import pc from 'picocolors';
 
 const MAX_RETRIES = 3;
@@ -9,23 +10,30 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Проверка статуса делегации после выполнения
+/**
+ * Проверяет статус делегации EIP-7702.
+ *
+ * ИСПРАВЛЕНО: старый код проверял code !== '0x' что ловило любой контрактный код.
+ * EIP-7702 delegation designator всегда начинается с 0xef0100 — проверяем именно его.
+ */
 async function verifyDelegationStatus(publicClient, address, expectedRevoked = true) {
   try {
     const code = await publicClient.getCode({ address });
-    const hasDelegation = code && code !== '0x' && code !== '0x0';
+
+    // EIP-7702 delegation designator: 0xef0100<address(20 bytes)>
+    const hasDelegation = typeof code === 'string' && code.toLowerCase().startsWith('0xef0100');
 
     if (expectedRevoked) {
-      return !hasDelegation 
-        ? { success: true, message: "✓ Delegation successfully revoked (no code)" }
-        : { success: false, message: "⚠️  Delegation still present" };
+      return hasDelegation
+        ? { success: false, message: '⚠️  Delegation still present after revoke' }
+        : { success: true,  message: '✓  Delegation successfully revoked' };
     } else {
-      return hasDelegation 
-        ? { success: true, message: "✓ Delegation active" }
-        : { success: false, message: "⚠️  No delegation detected" };
+      return hasDelegation
+        ? { success: true,  message: `✓  Delegation active → ${code.slice(0, 48)}` }
+        : { success: false, message: '⚠️  No EIP-7702 delegation detected' };
     }
-  } catch (err) {
-    return { success: false, message: "❌ Could not verify status" };
+  } catch {
+    return { success: false, message: '❌  Could not verify delegation status' };
   }
 }
 
@@ -37,32 +45,39 @@ export async function sendEIP7702Tx({
   dryRun = false,
   customRpc = null,
   manualNonce = null,
-  jsonOutput = false
+  jsonOutput = false,
 }) {
-  const transport = customRpc ? http(customRpc) : http(network.rpcUrls.default.http[0]);
-  const publicClient = createPublicClient({ chain: network, transport });
-  const walletClient = createWalletClient({ account: sponsorAccount, chain: network, transport });
+  const transport = customRpc
+    ? http(customRpc)
+    : http(network.rpcUrls.default.http[0]);
+
+  const publicClient  = createPublicClient({ chain: network, transport });
+  const walletClient  = createWalletClient({ account: sponsorAccount, chain: network, transport });
 
   if (!jsonOutput) console.log(pc.cyan(`\n→ ${network.name} (Chain ID: ${network.id})`));
 
-  // Проверка перед операцией
+  // Проверка делегации перед операцией
   const codeBefore = await publicClient.getCode({ address: sourceAccount.address });
-  const hasDelegationBefore = codeBefore && codeBefore !== '0x' && codeBefore !== '0x0';
+  const hasDelegationBefore = typeof codeBefore === 'string' && codeBefore.toLowerCase().startsWith('0xef0100');
 
   if (!hasDelegationBefore && contractAddress === zeroAddress) {
-    if (!jsonOutput) console.log(pc.yellow("   ⚠️  No active delegation. Nothing to revoke."));
+    if (!jsonOutput) console.log(pc.yellow('  ⚠️  No EIP-7702 delegation found. Nothing to revoke.'));
     return true;
   }
 
   if (!jsonOutput) {
-    console.log(hasDelegationBefore 
-      ? pc.yellow("   ⚠️  Active delegation detected") 
-      : pc.green("   ✓ No active delegation"));
+    console.log(hasDelegationBefore
+      ? pc.yellow('  ⚠️  Active EIP-7702 delegation detected')
+      : pc.green('  ✓  No active delegation'));
   }
 
-  const nonce = manualNonce !== null 
+  // Nonce владельца (не спонсора!)
+  const nonce = manualNonce !== null
     ? Number(manualNonce)
-    : await publicClient.getTransactionCount({ address: sourceAccount.address, blockTag: 'pending' });
+    : await publicClient.getTransactionCount({
+        address: sourceAccount.address,
+        blockTag: 'pending',
+      });
 
   const authorization = await sourceAccount.signAuthorization({
     contractAddress,
@@ -70,15 +85,16 @@ export async function sendEIP7702Tx({
     nonce,
   });
 
-  if (!jsonOutput) console.log(pc.green("   ✅ Authorization signed"));
+  if (!jsonOutput) console.log(pc.green('  ✅  Authorization signed'));
 
   if (dryRun) {
-    if (!jsonOutput) console.log(pc.yellow("   🧪 DRY-RUN MODE"));
+    if (!jsonOutput) console.log(pc.yellow('  🧪  DRY-RUN: transaction not sent'));
     return true;
   }
 
-  // Основная операция с retry
+  // Отправка с retry
   let txHash = null;
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const estimatedGas = await publicClient.estimateGas({
@@ -98,37 +114,57 @@ export async function sendEIP7702Tx({
       });
 
       if (!jsonOutput) {
-        console.log(pc.blue(`   📤 Transaction: ${txHash}`));
-        console.log(`   🔗 ${network.blockExplorers?.default?.url}/tx/${txHash}`);
+        console.log(pc.blue(`  📤  Tx: ${txHash}`));
+        console.log(`  🔗  ${network.blockExplorers?.default?.url}/tx/${txHash}`);
       }
 
-      break; // Успешно отправили
+      break; // успешно отправили
+
     } catch (err) {
       if (attempt === MAX_RETRIES) throw err;
-      if (!jsonOutput) console.warn(pc.yellow(`   ⚠️  Attempt ${attempt} failed, retrying...`));
+      if (!jsonOutput) console.warn(pc.yellow(`  ⚠️  Attempt ${attempt} failed, retrying in ${RETRY_DELAY / 1000}s...`));
       await sleep(RETRY_DELAY);
     }
   }
 
   // Ожидание подтверждения
-  const receipt = await publicClient.waitForTransactionReceipt({ 
-    hash: txHash, 
-    confirmations: 1, 
-    timeout: 90000 
-  });
+  // ИСПРАВЛЕНО: обёрнуто в try/catch — при таймауте процесс больше не падает.
+  let success = false;
+  try {
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: txHash,
+      confirmations: 1,
+      timeout: 90_000,
+    });
+    success = receipt.status === 'success';
+    if (!jsonOutput) {
+      console.log(success
+        ? pc.green('  ✅  Transaction confirmed')
+        : pc.red('  ❌  Transaction failed (reverted)'));
+    }
+  } catch (err) {
+    // WaitForTransactionReceiptTimeoutError — транзакция ещё может подтвердиться
+    if (err.name === 'WaitForTransactionReceiptTimeoutError') {
+      if (!jsonOutput) {
+        console.log(pc.yellow('  ⏱   Timeout (90s). Transaction may still confirm:'));
+        console.log(`  🔗  ${network.blockExplorers?.default?.url}/tx/${txHash}`);
+      }
+      return true; // не считаем провалом — пользователь может проверить вручную
+    }
+    throw err;
+  }
 
-  const success = receipt.status === 'success';
-  if (!jsonOutput) console.log(success ? pc.green("   ✅ Transaction confirmed") : pc.red("   ❌ Transaction failed"));
-
-  // === Проверка статуса через eip7702.app логику (локально) ===
+  // Верификация результата
   if (success && !jsonOutput) {
-    console.log(pc.cyan("\n   🔍 Verifying final delegation status..."));
+    console.log(pc.cyan('\n  🔍  Verifying final delegation status...'));
     const verification = await verifyDelegationStatus(
-      publicClient, 
-      sourceAccount.address, 
-      contractAddress === zeroAddress
+      publicClient,
+      sourceAccount.address,
+      contractAddress === zeroAddress,
     );
-    console.log(verification.message);
+    console.log(verification.success
+      ? pc.green(`  ${verification.message}`)
+      : pc.yellow(`  ${verification.message}`));
   }
 
   return success;
