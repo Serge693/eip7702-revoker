@@ -1,106 +1,124 @@
-#!/usr/bin/env node
-import { config } from 'dotenv';
-import { privateKeyToAccount } from 'viem/accounts';
+// revoke.mjs
+
+import { Command } from 'commander';
+import * as cfg from './config.mjs';
+import { sendEIP7702Tx } from './eip7702-utils.mjs';
+import { zeroAddress } from 'viem';
+import { networks, getNetworkByName, getNetworks } from './networks.mjs';
 import pc from 'picocolors';
-import * as utils from './eip7702-utils.mjs';
-import { getNetworks, getNetworkByName } from './networks.mjs';
-import { createInterface } from 'readline';
+import readline from 'readline/promises';
 
-config();
+const program = new Command();
 
-const rl = createInterface({
+program
+  .name('revoke')
+  .description('Revoke EIP-7702 authorization (reset to zero address)')
+  .option('-n, --network <networks>', 'Networks (comma separated) or "all"', 'base')
+  .option('--dry-run', 'Simulate only, do not broadcast')
+  .option('--rpc <url>', 'Custom RPC URL')
+  .option('--nonce <number>', 'Manual nonce override')
+  .option('-y, --yes', 'Skip confirmation prompt')
+  .option('--json', 'Output result as JSON')
+  .parse();
+
+const opts = program.opts();
+
+const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
 });
 
-const ask = (question) => new Promise(resolve => rl.question(question, resolve));
+async function confirmAction(networkNames) {
+  if (opts.yes || opts.dryRun || opts.json) return true;
 
-function getArgValue(flag) {
-  const index = process.argv.indexOf(flag);
-  if (index !== -1 && process.argv[index + 1]) {
-    return process.argv[index + 1];
-  }
-  // Support --network=base format too
-  const eqIndex = process.argv.findIndex(arg => arg.startsWith(flag + '='));
-  if (eqIndex !== -1) {
-    return process.argv[eqIndex].split('=')[1];
-  }
-  return null;
+  console.log(pc.yellow(`\n⚠️   About to REVOKE EIP-7702 delegation on ${networkNames.length} network(s):`));
+  console.log(pc.cyan('    ' + networkNames.join(', ')));
+  console.log(pc.yellow('\n    This cannot be easily undone.\n'));
+
+  const answer = await rl.question('Type "yes" to continue: ');
+  return answer.toLowerCase() === 'yes';
 }
 
 async function main() {
-  console.log(pc.bold(pc.cyan("\n🔥 EIP-7702 Revoker\n")));
+  if (!opts.json) {
+    console.log(pc.bold(pc.magenta(`\n🔥 EIP-7702 Revoker v${cfg.version}\n`)));
+  }
 
-  const networkArg = getArgValue('--network') || 'ethereum';
-  const dryRun = process.argv.includes('--dry-run');
-  const victimPk = process.env.SOURCE_PRIVATE_KEY || process.env.VICTIM_PRIVATE_KEY;
-  const sponsorPk = process.env.SPONSOR_PRIVATE_KEY;
+  // Резолвим список сетей
+  let selectedNetworks = [];
 
-  if (!victimPk || !sponsorPk) {
-    console.error(pc.red("❌ SOURCE_PRIVATE_KEY and SPONSOR_PRIVATE_KEY must be set in .env"));
-    rl.close();
+  if (opts.network.toLowerCase() === 'all') {
+    selectedNetworks = getNetworks();
+  } else {
+    const names = opts.network.split(',').map(n => n.trim());
+    selectedNetworks = names
+      .map(name => getNetworkByName(name))
+      .filter(Boolean);
+  }
+
+  // Дедупликация — защита от --network base,base
+  selectedNetworks = [...new Map(selectedNetworks.map(n => [n.id, n])).values()];
+
+  if (selectedNetworks.length === 0) {
+    if (opts.json) {
+      console.log(JSON.stringify({ success: false, error: 'no_valid_networks' }));
+    } else {
+      console.error(pc.red(`❌  No valid networks found for: "${opts.network}"`));
+      console.error(pc.gray(`    Available: ${Object.keys(networks).join(', ')}`));
+    }
     process.exit(1);
   }
 
-  const victimAccount = privateKeyToAccount(victimPk);
-  const sponsorAccount = privateKeyToAccount(sponsorPk);
+  const networkNames = selectedNetworks.map(n => n.name);
 
-  console.log(pc.gray(`Victim:  ${victimAccount.address}`));
-  console.log(pc.gray(`Sponsor: ${sponsorAccount.address}`));
-
-  let networksList = [];
-
-  if (networkArg.toLowerCase() === 'all') {
-    networksList = getNetworks();
-    console.log(pc.yellow(`\n⚠️  Revoking on ALL networks (${networksList.length})`));
-  } else {
-    const names = networkArg.split(',').map(n => n.trim().toLowerCase());
-    networksList = names.map(name => getNetworkByName(name)).filter(Boolean);
+  if (!await confirmAction(networkNames)) {
+    console.log(pc.yellow('Operation cancelled.'));
+    return;
   }
 
-  // Дедупликация
-  const uniqueNetworks = networksList.filter((net, index, self) =>
-    index === self.findIndex(n => n.id === net.id)
+  if (!opts.json) {
+    console.log(pc.cyan(`\nRevoking on: ${networkNames.join(', ')}`));
+  }
+
+  // Параллельная обработка всех сетей
+  const tasks = selectedNetworks.map(network =>
+    sendEIP7702Tx({
+      network,
+      sourceAccount: cfg.sourceAccount,
+      sponsorAccount: cfg.sponsorAccount,
+      contractAddress: zeroAddress,
+      dryRun: opts.dryRun,
+      customRpc: opts.rpc || null,
+      manualNonce: opts.nonce != null ? Number(opts.nonce) : null,
+      jsonOutput: opts.json,
+    })
+      .then(success => ({ network: network.name, chainId: network.id, success }))
+      .catch(err   => ({ network: network.name, chainId: network.id, success: false, error: err.message }))
   );
 
-  if (uniqueNetworks.length === 0) {
-    console.error(pc.red(`❌ Unknown network: ${networkArg}`));
-    console.log(pc.gray("Available: ethereum, base, arbitrum, optimism, polygon, bsc, etc."));
-    rl.close();
-    return;
-  }
+  const results = (await Promise.allSettled(tasks)).map(r => r.value ?? r.reason);
+  const allSuccess = results.every(r => r.success);
 
-  console.log(pc.cyan(`\nNetworks: ${uniqueNetworks.map(n => n.name).join(', ')}\n`));
-
-  const confirm = dryRun ? 'y' : await ask(pc.yellow("Continue? (y/N): "));
-  if (!dryRun && !['y', 'yes'].includes(confirm.toLowerCase())) {
-    console.log(pc.gray("Cancelled."));
-    rl.close();
-    return;
-  }
-
-  let successCount = 0;
-
-  for (const network of uniqueNetworks) {
-    try {
-      console.log(pc.cyan(`\n→ Processing ${network.name} (Chain ID: ${network.id})`));
-      
-      const success = await utils.sendEIP7702Tx({
-        network,
-        sourceAccount: victimAccount,
-        sponsorAccount,
-        contractAddress: utils.zeroAddress, // revoke
-        dryRun,
-        jsonOutput: false
-      });
-
-      if (success) successCount++;
-    } catch (err) {
-      console.error(pc.red(`   ❌ Error on ${network.name}:`), err.message);
+  if (opts.json) {
+    console.log(JSON.stringify({ success: allSuccess, results }, null, 2));
+  } else {
+    const failed = results.filter(r => !r.success);
+    if (failed.length > 0) {
+      console.log(pc.yellow(`\n⚠️   Completed with ${failed.length} failure(s):`));
+      failed.forEach(r => console.log(pc.red(`    ✗ ${r.network}: ${r.error ?? 'unknown error'}`)));
+    } else {
+      console.log(pc.green('\n🎉  All done!'));
     }
   }
-
-  console.log(pc.bold(pc.cyan(`\n✅ Finished. Successful: ${successCount}/${uniqueNetworks.length}`)));
 }
 
-main().catch(console.error).finally(() => rl.close());
+main()
+  .catch(err => {
+    if (opts.json) {
+      console.log(JSON.stringify({ success: false, error: err.message }));
+    } else {
+      console.error(pc.red('\n💥  Critical error:'), err.message);
+    }
+    process.exit(1);
+  })
+  .finally(() => rl.close());
