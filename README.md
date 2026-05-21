@@ -31,6 +31,8 @@ This tool splits the operation:
 ## Installation
 
 ```bash
+git clone https://github.com/Serge693/eip7702-revoker.git
+cd eip7702-revoker
 npm install
 cp .env.example .env
 # Edit .env with your private keys
@@ -54,8 +56,11 @@ npm run delegate -- --network base --to 0xContractAddress...
 # Delegate on all networks
 npm run delegate:all
 
-# Use without .env (interactive key input)
-npm run start -- revoke --interactive
+# Use without .env (interactive key input — tool prompts for keys)
+npm run revoke -- --interactive
+
+# Or directly with tsx (if you prefer)
+npx tsx src/main.ts revoke --interactive
 
 # Dry-run mode (simulate without broadcasting)
 npm run revoke -- --dry-run
