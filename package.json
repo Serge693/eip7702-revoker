@@ -1,17 +1,22 @@
 {
   "name": "eip7702-revoker",
-  "version": "1.4.0",
-  "description": "Powerful and secure CLI tool to revoke and delegate EIP-7702 authorizations with a separate gas sponsor account.",
+  "version": "2.0.0",
+  "description": "CLI tool to revoke and delegate EIP-7702 authorizations with a separate gas sponsor account",
   "type": "module",
   "scripts": {
-    "revoke": "node revoke.mjs",
-    "delegate": "node delegate.mjs",
-    "revoke:all": "node revoke.mjs --network all",
-    "delegate:all": "node delegate.mjs --network all",
-    "help": "node revoke.mjs --help",
-    "help:delegate": "node delegate.mjs --help"
+    "revoke": "tsx src/main.ts revoke",
+    "delegate": "tsx src/main.ts delegate",
+    "revoke:all": "tsx src/main.ts revoke --network all",
+    "delegate:all": "tsx src/main.ts delegate --network all",
+    "start": "tsx src/main.ts",
+    "lint": "eslint src/ tests/",
+    "format": "prettier --check src/ tests/",
+    "format:fix": "prettier --write src/ tests/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
-  "keywords": ["eip-7702", "eip7702", "revoke", "delegate", "authorization", "security", "ethereum"],
+  "keywords": ["eip-7702", "eip7702", "revoke", "delegate", "authorization", "ethereum", "cli"],
   "author": "Serge693",
   "license": "MIT",
   "dependencies": {
@@ -19,6 +24,14 @@
     "dotenv": "^16.4.7",
     "picocolors": "^1.1.1",
     "viem": "^2.48.11"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
