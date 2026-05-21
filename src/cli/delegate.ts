@@ -97,6 +97,11 @@ async function executeDelegate(options: Record<string, unknown>): Promise<void> 
     process.exit(1);
   }
 
+  if (!sourceAccount || !sponsorAccount) {
+    console.error(pc.red("Missing required keys. Use .env file or --interactive flag."));
+    process.exit(1);
+  }
+
   const networkNames = selectedNetworks.map((n) => n.name);
 
   if (!jsonOutput) {

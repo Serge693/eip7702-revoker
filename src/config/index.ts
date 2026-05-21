@@ -16,24 +16,32 @@ const rawDelegateTo: string | undefined = process.env.DELEGATE_TO?.trim() || und
 
 const privateKey = SOURCE_PK ?? LEGACY_PK;
 
-if (!privateKey) {
+const isHelpOrVersion = () =>
+  process.argv.includes("--help") || process.argv.includes("-h") ||
+  process.argv.includes("--version") || process.argv.includes("-V");
+
+if (!privateKey && !isHelpOrVersion()) {
   console.error(pc.red("SOURCE_PRIVATE_KEY (or VICTIM_PRIVATE_KEY) is required in .env"));
   process.exit(1);
 }
-if (!SPONSOR_PK) {
+if (!SPONSOR_PK && !isHelpOrVersion()) {
   console.error(pc.red("SPONSOR_PRIVATE_KEY is required in .env"));
   process.exit(1);
 }
 
-validatePrivateKey(privateKey, "SOURCE_PRIVATE_KEY");
-validatePrivateKey(SPONSOR_PK, "SPONSOR_PRIVATE_KEY");
+if (privateKey) {
+  validatePrivateKey(privateKey, "SOURCE_PRIVATE_KEY");
+}
+if (SPONSOR_PK) {
+  validatePrivateKey(SPONSOR_PK, "SPONSOR_PRIVATE_KEY");
+}
 
 if (LEGACY_PK && !SOURCE_PK) {
   console.warn(pc.yellow("VICTIM_PRIVATE_KEY is deprecated. Rename to SOURCE_PRIVATE_KEY in .env"));
 }
 
-const sourceAccount = privateKeyToAccount(privateKey as `0x${string}`);
-const sponsorAccount = privateKeyToAccount(SPONSOR_PK as `0x${string}`);
+const sourceAccount = privateKey ? privateKeyToAccount(privateKey as `0x${string}`) : null;
+const sponsorAccount = SPONSOR_PK ? privateKeyToAccount(SPONSOR_PK as `0x${string}`) : null;
 
 let delegateTo: string | null = null;
 if (rawDelegateTo && rawDelegateTo !== "0x...") {
@@ -47,4 +55,4 @@ if (rawDelegateTo && rawDelegateTo !== "0x...") {
 const minSponsorBalance = parseFloat(process.env.SPONSOR_MIN_BALANCE ?? "0.003");
 const verifyDelay = parseInt(process.env.EIP7702_VERIFY_DELAY ?? "3000", 10);
 
-export { version, sourceAccount, sponsorAccount, delegateTo, minSponsorBalance, verifyDelay };
+export { privateKey, SPONSOR_PK, version, sourceAccount, sponsorAccount, delegateTo, minSponsorBalance, verifyDelay };

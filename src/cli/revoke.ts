@@ -65,27 +65,16 @@ async function executeRevoke(options: Record<string, unknown>): Promise<void> {
     process.exit(1);
   }
 
+  if (!sourceAccount || !sponsorAccount) {
+    console.error(pc.red("Missing required keys. Use .env file or --interactive flag."));
+    process.exit(1);
+  }
+
   const networkNames = selectedNetworks.map((n) => n.name);
 
-  // Confirmation
-  if (!opts.yes && !opts.dryRun && !jsonOutput) {
-    console.log(
-      pc.yellow(`\nAbout to REVOKE EIP-7702 delegation on ${networkNames.length} network(s):`),
-    );
-    console.log(pc.cyan("    " + networkNames.join(", ")));
-    console.log(pc.yellow("\n    This cannot be easily undone.\n"));
-
-    const readline = await import("readline/promises");
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    const answer = await rl.question('Type "yes" to continue: ');
-    rl.close();
-    if (answer.toLowerCase() !== "yes") {
-      console.log(pc.yellow("Operation cancelled."));
-      return;
-    }
+  if (!jsonOutput) {
+    console.log(`    Source:      ${sourceAccount.address}`);
+    console.log(`    Sponsor:     ${sponsorAccount.address}`);
   }
 
   log(`\nRevoking on: ${networkNames.join(", ")}`, pc.cyan);

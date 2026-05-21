@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command } from "commander";
 import { version } from "./config/index.js";
 import { revokeCommand } from "./cli/revoke.js";

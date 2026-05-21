@@ -5,6 +5,7 @@ Ethereum accounts using a **separate gas sponsor account** — so the compromise
 wallet does not need to hold ETH for gas fees. Works across 12 major EVM
 networks simultaneously.
 
+[![npm version](https://img.shields.io/npm/v/eip7702-revoker)](https://www.npmjs.com/package/eip7702-revoker)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
@@ -31,6 +32,14 @@ This tool splits the operation:
 ## Installation
 
 ```bash
+# Run directly without installation
+npx eip7702-revoker --help
+
+# Or install globally
+npm install -g eip7702-revoker
+eip7702-revoker --help
+
+# Or clone and run locally
 git clone https://github.com/Serge693/eip7702-revoker.git
 cd eip7702-revoker
 npm install
@@ -56,11 +65,11 @@ npm run delegate -- --network base --to 0xContractAddress...
 # Delegate on all networks
 npm run delegate:all
 
-# Use without .env (interactive key input — tool prompts for keys)
-npm run revoke -- --interactive
+# Use with npx (no clone needed)
+npx eip7702-revoker revoke --interactive
 
-# Or directly with tsx (if you prefer)
-npx tsx src/main.ts revoke --interactive
+# Interactive mode without .env (tool prompts for keys)
+npm run revoke -- --interactive
 
 # Dry-run mode (simulate without broadcasting)
 npm run revoke -- --dry-run
