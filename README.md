@@ -1,20 +1,32 @@
-# EIP-7702 Revoker v2
+# EIP-7702 Revoker
 
 CLI tool to **revoke** (remove) or **delegate** (set) EIP-7702 authorizations on
-Ethereum accounts using a **separate gas sponsor account** - so the compromised
+Ethereum accounts using a **separate gas sponsor account** — so the compromised
 wallet does not need to hold ETH for gas fees. Works across 12 major EVM
 networks simultaneously.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+---
+
 ## The Problem
 
-[EIP-7702](https://eips.ethereum.org/EIPS/eip-7702) allows EOAs to temporarily
-behave like smart contracts via delegation. If a malicious actor tricks a user
-into signing a delegation, they can drain the wallet. The catch is that if the
-wallet has no ETH for gas, the user cannot revoke the delegation.
+[EIP-7702](https://eips.ethereum.org/EIPS/eip-7702) lets regular wallets (EOAs)
+temporarily behave like smart contracts by delegating execution to a contract
+address. This is powerful — but if a malicious actor tricks you into signing a
+delegation, they can drain your wallet.
+
+The catch: **if your wallet has no ETH for gas, you can't revoke the delegation
+yourself.**
 
 This tool splits the operation:
 - **Source wallet** (the compromised one) signs the authorization — needs ZERO ETH
 - **Sponsor wallet** broadcasts the transaction — pays gas fees
+
+---
 
 ## Installation
 
@@ -68,8 +80,20 @@ npm run revoke -- --json
 
 ### Supported Networks
 
-Ethereum, Base, Arbitrum One, OP Mainnet, Polygon, BNB Smart Chain,
-Gnosis Chain, Linea, Blast, Mode, Soneium, zkSync Era
+| Network | Chain ID | Alias |
+|---------|----------|-------|
+| Ethereum | 1 | `eth`, `mainnet` |
+| Base | 8453 | `base` |
+| Arbitrum One | 42161 | `arb` |
+| OP Mainnet | 10 | `op` |
+| Polygon | 137 | `matic` |
+| BNB Smart Chain | 56 | `bnb` |
+| Gnosis Chain | 100 | `xdai` |
+| Linea | 59144 | `linea` |
+| Blast | 81457 | `blast` |
+| Mode | 34443 | `mode` |
+| Soneium | 1868 | `soneium` |
+| zkSync Era | 324 | `zksync` |
 
 > **Note:** zkSync Era uses a different transaction model and may not support
 > EIP-7702 in the standard way. Proceed with caution.
@@ -106,6 +130,39 @@ npm run format      # Check formatting
 npm run format:fix  # Auto-fix formatting
 ```
 
+## Changelog
+
+### v2.0.0 (2026-05-21)
+
+- Rewritten in TypeScript (all `.mjs` → `.ts`)
+- Added test suite (vitest, 9 tests)
+- Added ESLint + Prettier for code quality
+- Added `--interactive` flag for key input without `.env`
+- Added pre-flight checks: RPC health, sponsor balance
+- Added zkSync compatibility warning
+- `MIN_SPONSOR_BALANCE` is now enforced before sending
+- `EIP7702_VERIFY_DELAY` is configurable via `.env`
+- Added `SILENT` env var documentation
+- All output and comments are in English
+
+### v1.4.1 (2026-05-19)
+
+- Last stable JavaScript release
+- Available on the `v1.4.1` tag
+
+## Contributing
+
+Contributions are welcome! Here's how to help:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Make your changes
+4. Run tests (`npm test`) and lint (`npm run lint`)
+5. Commit and push
+6. Open a Pull Request
+
+Please ensure your code follows the existing style and all tests pass.
+
 ## License
 
-MIT
+MIT © [Serge693](https://github.com/Serge693)

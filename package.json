@@ -16,7 +16,22 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["eip-7702", "eip7702", "revoke", "delegate", "authorization", "ethereum", "cli"],
+  "keywords": [
+    "eip-7702",
+    "eip7702",
+    "revoke",
+    "delegate",
+    "authorization",
+    "ethereum",
+    "cli",
+    "security",
+    "web3",
+    "evm",
+    "gas-sponsor",
+    "account-abstraction",
+    "crypto",
+    "blockchain"
+  ],
   "author": "Serge693",
   "license": "MIT",
   "dependencies": {
